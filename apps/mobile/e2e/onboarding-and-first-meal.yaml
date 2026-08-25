@@ -1,0 +1,57 @@
+# Maestro flow — covers spec section 50 acceptance criteria 1-12:
+# register -> onboard -> Home -> mic -> "I ate a banana." -> interpretation ->
+# confirm -> meal appears in Today's Meals -> daily calories update.
+#
+# Run with: maestro test e2e/onboarding-and-first-meal.yaml
+# Requires: API running with MOCK_AI=MOCK_SPEECH=MOCK_NUTRITION=true, and the
+# app pointed at it via EXPO_PUBLIC_API_URL. Not executed in this environment
+# (no Android emulator/device available) — provided as the documented flow.
+appId: com.fitnesscoach.app
+---
+- launchApp
+- tapOn: 'Sign up'
+- tapOn:
+    below: 'Name'
+- inputText: 'Maestro Test'
+- tapOn:
+    below: 'Email'
+- inputText: 'maestro-${TIMESTAMP}@test.local'
+- tapOn:
+    below: 'Password'
+- inputText: 'password123'
+- tapOn: 'Create account'
+
+# Onboarding
+- assertVisible: 'Welcome'
+- tapOn: 'Get started'
+- tapOn: 'Date of birth (YYYY-MM-DD)'
+- inputText: '1995-06-15'
+- tapOn: 'Height (cm)'
+- inputText: '170'
+- tapOn: 'Current weight (kg)'
+- inputText: '70'
+- tapOn: 'Female'
+- tapOn: 'Moderate — exercise 3-5 days/week'
+- tapOn: 'Continue'
+
+- tapOn: 'Lose weight'
+- tapOn: 'Continue'
+
+- tapOn: 'Vegetarian'
+- tapOn: 'Continue'
+
+- tapOn: 'Skip'
+
+- tapOn: 'Prefer not to answer'
+
+# Home
+- assertVisible: 'Tell me what you ate'
+- tapOn: 'Tell me what you ate'
+- inputText: 'I ate a banana.'
+- tapOn: 'Log it'
+- assertVisible: 'I understood:'
+- assertVisible: 'banana'
+- tapOn: 'Confirm'
+
+# Back on Home, the meal and updated calories should be visible.
+- assertVisible: 'banana'

@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "Fitness Coach",
+    "slug": "fitness-coach",
+    "scheme": "fitnesscoach",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow Fitness Coach to use speech recognition to understand what you say.",
+        "NSMicrophoneUsageDescription": "Allow Fitness Coach to use the microphone so you can log meals by voice."
+      }
+    },
+    "android": {
+      "package": "com.fitnesscoach.mobile",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-secure-store",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Fitness Coach to use the microphone so you can log meals by voice.",
+          "speechRecognitionPermission": "Allow Fitness Coach to use speech recognition to understand what you say.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d6573cf2-1010-408f-9406-978cffff44c4"
+      }
+    },
+    "owner": "vijaysaini1992"
+  }
+}

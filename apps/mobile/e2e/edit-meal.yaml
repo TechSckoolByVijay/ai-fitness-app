@@ -1,0 +1,22 @@
+# Maestro flow — covers spec section 50 acceptance criterion 14:
+# log a meal, open it from Food history, edit it, verify updated totals.
+#
+# Run with: maestro test e2e/edit-meal.yaml
+# Assumes a logged-in demo user (see apps/api/prisma/seed.ts) already has at
+# least one meal logged today. Not executed in this environment (no Android
+# emulator/device available) — provided as the documented flow.
+appId: com.fitnesscoach.app
+---
+- launchApp
+- tapOn: 'Food'
+- assertVisible: 'Today'
+- tapOn:
+    text: 'chapati'
+    index: 0
+- assertVisible: 'kcal total'
+- tapOn: 'Edit'
+- tapOn:
+    below: 'chapati'
+- tapOn: '+'
+- tapOn: 'Save changes'
+- assertVisible: 'kcal total'

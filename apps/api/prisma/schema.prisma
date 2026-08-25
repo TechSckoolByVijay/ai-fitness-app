@@ -1,0 +1,527 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ---------- Enums ----------
+
+enum AuthProvider {
+  email
+  google
+}
+
+enum Sex {
+  male
+  female
+  other
+  prefer_not_to_say
+}
+
+enum ActivityLevel {
+  sedentary
+  light
+  moderate
+  active
+  very_active
+}
+
+enum GoalType {
+  lose_weight
+  gain_muscle
+  maintain_weight
+  improve_fitness
+  improve_health
+  improve_sleep
+  healthier_eating
+}
+
+enum DietType {
+  vegetarian
+  eggetarian
+  non_vegetarian
+  vegan
+  other
+}
+
+enum AllergyType {
+  milk
+  lactose
+  curd
+  gluten
+  nuts
+  peanuts
+  eggs
+  seafood
+  other
+}
+
+enum HealthConditionType {
+  diabetes
+  blood_pressure
+  cholesterol
+  thyroid
+  kidney
+  digestive
+  medications
+  other
+  prefer_not_to_answer
+}
+
+enum MealType {
+  breakfast
+  lunch
+  dinner
+  snack
+}
+
+enum ConfidenceTier {
+  high
+  medium
+  low
+}
+
+enum FoodEntryStatus {
+  confirmed
+  pending_clarification
+  edited
+}
+
+enum NutritionSource {
+  mock
+  usda
+  open_food_facts
+  indian_dataset
+  custom
+  user_edited
+}
+
+enum HealthIntegrationProvider {
+  health_connect
+  apple_health
+}
+
+enum HealthIntegrationStatus {
+  connected
+  disconnected
+  error
+}
+
+enum NotificationCategory {
+  water
+  sleep
+  screen_break
+  meal_suggestion
+  goal_progress
+  weekly_summary
+  health_insight
+}
+
+enum ActivityType {
+  walking
+  running
+  cycling
+  swimming
+  yoga
+  badminton
+  tennis
+  football
+  basketball
+  cricket
+  gym_workout
+  weight_training
+  dancing
+  hiking
+  other
+}
+
+enum ActivityIntensity {
+  light
+  moderate
+  vigorous
+}
+
+// ---------- Phase 1: fully wired models ----------
+
+model User {
+  id              String       @id @default(uuid()) @db.Uuid
+  email           String       @unique
+  passwordHash    String?
+  authProvider    AuthProvider @default(email)
+  googleId        String?      @unique
+  name            String
+  profilePhotoUrl String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  profile                 Profile?
+  goals                   Goal[]
+  dietPreference          DietPreference?
+  allergies               Allergy[]
+  healthConditions        HealthCondition[]
+  medications             Medication[]
+  foodEntries             FoodEntry[]
+  dailySummaries          DailySummary[]
+  waterEntries            WaterEntry[]
+  sleepEntries            SleepEntry[]
+  exerciseEntries         ExerciseEntry[]
+  weightEntries           WeightEntry[]
+  healthMetrics           HealthMetric[]
+  frequentMeals           FrequentMeal[]
+  favoriteFoods           FavoriteFood[]
+  notificationPreferences NotificationPreference[]
+  healthIntegrations      HealthIntegration[]
+  aiConversations         AiConversation[]
+  feedback                UserFeedback[]
+  refreshTokens           RefreshToken[]
+
+  @@index([email])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Profile {
+  id                    String    @id @default(uuid()) @db.Uuid
+  userId                String    @unique @db.Uuid
+  dateOfBirth           DateTime?
+  sex                   Sex?
+  heightCm              Decimal?  @db.Decimal(5, 2)
+  currentWeightKg       Decimal?  @db.Decimal(5, 2)
+  targetWeightKg        Decimal?  @db.Decimal(5, 2)
+  activityLevel         ActivityLevel?
+  wakeTime              String?
+  targetSleepTime       String?
+  waterTargetMl         Int?
+  calorieTarget         Int?
+  proteinTarget         Int?
+  profileCompletionJson Json?
+  onboardingCompletedAt DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Goal {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  type      GoalType
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isPrimary])
+}
+
+model DietPreference {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  dietType  DietType
+  otherText String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Allergy {
+  id        String      @id @default(uuid()) @db.Uuid
+  userId    String      @db.Uuid
+  type      AllergyType
+  otherText String?
+  createdAt DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model HealthCondition {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @db.Uuid
+  type      HealthConditionType
+  otherText String?
+  createdAt DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model FoodEntry {
+  id             String          @id @default(uuid()) @db.Uuid
+  userId         String          @db.Uuid
+  mealType       MealType
+  loggedAt       DateTime
+  sourceText     String?
+  confidenceTier ConfidenceTier  @default(high)
+  status         FoodEntryStatus @default(confirmed)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items FoodItem[]
+
+  @@index([userId, loggedAt])
+}
+
+model FoodItem {
+  id                   String   @id @default(uuid()) @db.Uuid
+  foodEntryId          String   @db.Uuid
+  name                 String
+  quantity             Decimal  @db.Decimal(8, 2)
+  unit                 String
+  preparationMethod    String?
+  ingredientsJson      Json?
+  estimatedWeightGrams Decimal? @db.Decimal(8, 2)
+  confidence           Decimal  @db.Decimal(3, 2)
+  rawDescriptorsJson   Json?
+  createdAt            DateTime @default(now())
+
+  foodEntry FoodEntry        @relation(fields: [foodEntryId], references: [id], onDelete: Cascade)
+  nutrition NutritionRecord?
+
+  @@index([foodEntryId])
+}
+
+model NutritionRecord {
+  id         String          @id @default(uuid()) @db.Uuid
+  foodItemId String          @unique @db.Uuid
+  calories   Decimal         @db.Decimal(7, 2)
+  proteinG   Decimal         @db.Decimal(7, 2)
+  carbsG     Decimal         @db.Decimal(7, 2)
+  fatG       Decimal         @db.Decimal(7, 2)
+  fiberG     Decimal?        @db.Decimal(7, 2)
+  sugarG     Decimal?        @db.Decimal(7, 2)
+  sodiumMg   Decimal?        @db.Decimal(7, 2)
+  source     NutritionSource
+  isEstimate Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+
+  foodItem FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
+}
+
+model DailySummary {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @db.Uuid
+  date                  DateTime @db.Date
+  caloriesConsumed      Decimal  @default(0) @db.Decimal(8, 2)
+  proteinConsumed       Decimal  @default(0) @db.Decimal(8, 2)
+  carbsConsumed         Decimal  @default(0) @db.Decimal(8, 2)
+  fatConsumed           Decimal  @default(0) @db.Decimal(8, 2)
+  fiberConsumed         Decimal  @default(0) @db.Decimal(8, 2)
+  waterConsumedMl       Int      @default(0)
+  steps                 Int?
+  distanceM             Decimal? @db.Decimal(8, 2)
+  activeCalories        Decimal? @db.Decimal(8, 2)
+  sleepDurationMin      Int?
+  exerciseDurationMin   Int?
+  weightKg              Decimal? @db.Decimal(5, 2)
+  screenBreakCompliance Decimal? @db.Decimal(4, 2)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+// ---------- Phase 2-4: schema-only scaffolding (no business logic wired yet) ----------
+
+model Medication {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  name       String
+  dosageText String?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model WaterEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  amountMl  Int
+  loggedAt  DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loggedAt])
+}
+
+model SleepEntry {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  sleptAt     DateTime
+  wokeAt      DateTime
+  durationMin Int
+  source      String   @default("manual")
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sleptAt])
+}
+
+model ExerciseEntry {
+  id             String            @id @default(uuid()) @db.Uuid
+  userId         String            @db.Uuid
+  activityType   ActivityType
+  durationMin    Int
+  steps          Int?
+  distanceKm     Decimal?          @db.Decimal(6, 2)
+  intensity      ActivityIntensity?
+  caloriesBurned Decimal           @db.Decimal(7, 2)
+  sourceText     String?
+  confidence     Decimal           @default(1) @db.Decimal(3, 2)
+  loggedAt       DateTime
+  createdAt      DateTime          @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loggedAt])
+}
+
+model WeightEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  weightKg  Decimal  @db.Decimal(5, 2)
+  loggedAt  DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loggedAt])
+}
+
+model HealthMetric {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  type       String
+  valueJson  Json
+  recordedAt DateTime
+  source     String   @default("manual")
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, recordedAt])
+}
+
+model FrequentMeal {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  name       String
+  itemsJson  Json
+  useCount   Int       @default(0)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model FavoriteFood {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  name      String
+  itemsJson Json
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model NotificationPreference {
+  id              String               @id @default(uuid()) @db.Uuid
+  userId          String               @db.Uuid
+  category        NotificationCategory
+  enabled         Boolean              @default(true)
+  frequency       String?
+  quietHoursStart String?
+  quietHoursEnd   String?
+  preferredTime   String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+}
+
+model HealthIntegration {
+  id          String                    @id @default(uuid()) @db.Uuid
+  userId      String                    @db.Uuid
+  provider    HealthIntegrationProvider
+  status      HealthIntegrationStatus   @default(disconnected)
+  connectedAt DateTime?
+  scopesJson  Json?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+}
+
+model AiConversation {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AiMessage[]
+
+  @@index([userId])
+}
+
+model AiMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @db.Uuid
+  role           String
+  content        String
+  contextJson    Json?
+  createdAt      DateTime @default(now())
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model UserFeedback {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  subjectType  String
+  subjectId    String
+  feedbackType String
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, subjectType])
+}
