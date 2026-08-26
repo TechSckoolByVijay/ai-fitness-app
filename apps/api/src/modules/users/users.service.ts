@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import type { MeResponse, UpdateProfileRequest } from '@fitness-app/shared';
 import { NotFoundError } from '../../lib/errors';
+import { recalculateProfileTargets } from '../onboarding/recalculate-targets';
 
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -77,6 +78,10 @@ export async function updateProfile(
       activityLevel: input.activityLevel,
     },
   });
+
+  // Height/weight/DOB/sex/activity level all feed the BMR/TDEE calculation —
+  // recompute targets whenever any of them changes, not just at onboarding.
+  await recalculateProfileTargets(prisma, userId);
 
   return getMe(prisma, userId);
 }

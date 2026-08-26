@@ -12,3 +12,8 @@ export * from './schemas/auth.schema';
 export * from './schemas/profile.schema';
 export * from './schemas/dashboard.schema';
 export * from './schemas/coach.schema';
+export * from './schemas/water-entry.schema';
+export * from './schemas/weight-entry.schema';
+export * from './schemas/sleep-entry.schema';
+export * from './schemas/notification-preference.schema';
+export * from './schemas/favorite-food.schema';

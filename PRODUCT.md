@@ -52,9 +52,10 @@ Concretely: authentication, the full 6-step onboarding flow with progressive
 target calculation, the Home dashboard, natural-language food logging (voice
 UI with a mock-mode text fallback, or direct manual text entry — see
 ARCHITECTURE.md for why these share one pipeline), AI interpretation with
-three-tier confidence handling, nutrition estimation, food history with
-edit/delete/duplicate, and Progress as an intentionally minimal empty-state
-placeholder (explicitly Phase 2 in the spec's own plan).
+three-tier confidence handling, nutrition estimation, and food history with
+edit/delete/duplicate. Phase 2 (water/weight/sleep logging, see below) has
+also since been built, so the Progress tab is a real screen, not a
+placeholder.
 
 ### Deviation: activity logging and the AI Coach were pulled forward
 
@@ -76,12 +77,16 @@ built into this Phase 1 codebase, ahead of the spec's own phasing:
 
 Everything else in the "deliberately deferred" table below is still deferred.
 
+### Phase 2: water, weight, and sleep logging, plus reminder preferences
+
+Built as the natural next phase after Phase 1 (not a "pulled forward" deviation — this is spec sections 17-19 in their own sequence): quick water logging from Home (quantity quick-add against a computed daily target), a weight log with trend history that **feeds back into the calorie/protein/water target calculation** (logging a new current weight recalculates targets the same way onboarding does, not just once), and a sleep log (bedtime + wake time in, duration always computed server-side — never trusted from the client, same principle as the calorie-burn engine). Reminder *preferences* (per-category enable + preferred time) are implemented and persisted; actual push notification delivery is not — see the deferred table below.
+
 ## What's deliberately deferred (and why)
 
 | Deferred | Spec section | Why |
 |---|---|---|
 | Google Sign-In | 3, 7 | Requires an Expo Dev Build + Google Cloud OAuth app; no acceptance criterion needs it beyond "create an account," which email/password satisfies. Schema (`authProvider`, `googleId`) is ready. |
-| Water/sleep/weight logging & reminders | 17, 18, 19 | Spec's own Phase 2. Tables exist (`WaterEntry`, `SleepEntry`, `WeightEntry`, `NotificationPreference`); no routes/UI yet. |
+| Push notification delivery for reminders | 19 | `NotificationPreference` CRUD (enable/disable per category, preferred time) is implemented and used by the Profile screen's Reminders card — see the Phase 2 note above. Actually *sending* a scheduled notification at that time (local `expo-notifications` scheduling or a server-side push) is not built yet. |
 | Diet plans, structured personalized recommendations beyond chat | 22-25 | Spec's own Phase 3. The conversational AI Coach itself (ask for a suggestion, get a recipe) **was pulled forward and is implemented** — see the deviation note above. Structured multi-day diet plans are not. |
 | Android Health Connect / wearables | 20, 21 | Spec's own Phase 4. `HealthDataProvider` interface + mock exist; no route calls it yet, so Home's steps/sleep fields show as not-connected rather than fabricated data. |
 | Personal food memory via `FrequentMeal`/`FavoriteFood` tables | 28 | Those specific tables are still unused. The Coach's "frequently eaten foods" signal is instead computed directly from recent `FoodEntry` rows (see `coach-context.service.ts`) rather than a dedicated learned-preferences table. "My usual breakfast" as a *food-logging* shortcut still resolves to a low-confidence clarification prompt. |
@@ -104,9 +109,9 @@ Everything else in the "deliberately deferred" table below is still deferred.
 12. See daily calories update — ✅
 13. Log a complex meal using natural language — ✅ (verified: 3-item chapati/curry/salad sentence)
 14. Edit an incorrectly interpreted meal — ✅
-15. Log water — deferred (Phase 2)
-16. Log weight — deferred (Phase 2)
-17. Configure reminders — deferred (Phase 2)
+15. Log water — ✅
+16. Log weight — ✅ (also recalculates calorie/protein/water targets from the new weight)
+17. Configure reminders — ✅ preferences (enable + preferred time per category); actual notification delivery not yet built — see deferred table
 18. View progress — deferred (Phase 2, placeholder screen exists)
 19. Ask the AI Coach a question — ✅ (pulled forward from Phase 3 — see deviation note above)
 20. Receive a response based on stored data — ✅ (grounded in calorie budget, diet type, allergies, and recent meal history — never fabricated by the LLM; see ARCHITECTURE.md's "Coach" section)

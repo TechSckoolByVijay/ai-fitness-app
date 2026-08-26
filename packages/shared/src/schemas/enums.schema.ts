@@ -76,3 +76,14 @@ export type HealthConditionType = z.infer<typeof HealthConditionTypeSchema>;
 
 export const FoodEntryStatusSchema = z.enum(['confirmed', 'pending_clarification', 'edited']);
 export type FoodEntryStatus = z.infer<typeof FoodEntryStatusSchema>;
+
+export const NotificationCategorySchema = z.enum([
+  'water',
+  'sleep',
+  'screen_break',
+  'meal_suggestion',
+  'goal_progress',
+  'weekly_summary',
+  'health_insight',
+]);
+export type NotificationCategory = z.infer<typeof NotificationCategorySchema>;

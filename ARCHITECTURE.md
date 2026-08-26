@@ -221,13 +221,43 @@ exist so it's additive later, not a schema migration.
 
 Full spec section-32 table list is modeled in `prisma/schema.prisma` now —
 UUIDs, timestamps, indexes — so Phase 2-4 features can be built without
-destructive migrations. The Phase 1 subset plus the two pulled-forward
-features have real service logic: `User`, `Profile`, `Goal`,
-`DietPreference`, `Allergy`, `HealthCondition`, `FoodEntry`, `FoodItem`,
-`NutritionRecord`, `DailySummary`, `ExerciseEntry`, `AiConversation`,
-`AiMessage`. The rest (`WaterEntry`, `SleepEntry`, `WeightEntry`,
-`FrequentMeal`, `FavoriteFood`, `HealthIntegration`, etc.) still exist as
-schema-only scaffolding.
+destructive migrations. `User`, `Profile`, `Goal`, `DietPreference`,
+`Allergy`, `HealthCondition`, `FoodEntry`, `FoodItem`, `NutritionRecord`,
+`DailySummary`, `ExerciseEntry`, `AiConversation`, `AiMessage`, `WaterEntry`,
+`SleepEntry`, `WeightEntry`, and `NotificationPreference` all have real
+service logic. The rest (`FrequentMeal`, `FavoriteFood`, `HealthIntegration`,
+`Medication`, `HealthMetric`, etc.) still exist as schema-only scaffolding.
+
+### Water, weight, and sleep logging (spec sections 17-19)
+
+`modules/{water,weight,sleep}/` follow the same `*-entries.service.ts` /
+`*.routes.ts` shape as food/exercise. Two things worth calling out:
+
+- **Sleep duration is always computed server-side** from `sleptAt`/`wokeAt`
+  (`sleep/sleep-duration.ts`'s pure `computeSleepDurationMinutes()`) — the
+  same "never trust a client-computed derived number" principle as the
+  calorie-burn engine, just for a much simpler calculation. A sleep entry
+  where `wokeAt` isn't after `sleptAt` is rejected with a 400.
+- **Logging a new current weight recalculates targets**, not just once at
+  onboarding: `onboarding/recalculate-targets.ts`'s `recalculateProfileTargets()`
+  re-runs the same `calculateTargets()` BMR/TDEE formula used by
+  `completeOnboarding`, so calorie/protein/water targets track the user's
+  real weight over time instead of going stale. A weight entry only updates
+  `Profile.currentWeightKg` if it isn't older than the most recent existing
+  entry, so back-filling a past weight can't clobber a more recent one.
+
+All three roll into `DailySummary` the same way food/exercise do —
+`daily-summary.ts`'s `recomputeDailySummary()` now also sums `WaterEntry.amountMl`
+and `SleepEntry.durationMin` for the day. Sleep is bucketed by `wokeAt`, not
+`sleptAt` — a night's sleep is credited to the day the user woke up (most
+sleep trackers use this convention, and it avoids the entry usually landing
+on the previous calendar day).
+
+Notification preferences (`modules/notifications/`) are a plain per-category
+enable + preferred-time CRUD, defaulting every category to enabled with no
+preferred time until the user customizes it (no row needs to exist yet). This
+is preferences only — see PRODUCT.md's deferred table for why actual
+notification delivery isn't built.
 
 ## Mobile app
 
@@ -243,6 +273,8 @@ app/
 ├── (tabs)/                Home/Food/Progress/Coach/Profile — redirects to /login or
 │                          /account (onboarding) as needed
 ├── log-meal.tsx           modal — the voice/text logging flow (food AND exercise)
+├── log-weight.tsx         modal — single weight input
+├── log-sleep.tsx          modal — wake time + hours slept
 └── meal/[id].tsx          meal detail — edit/delete/duplicate
 ```
 
@@ -257,6 +289,19 @@ so it stays a single state machine instead of two parallel ones. `(tabs)/coach.t
 is a real chat screen (`ChatBubble` list + input, `useCoachConversation` /
 `useSendCoachMessage` hooks against `POST /coach/messages` and
 `GET /coach/conversation`) — no longer a Phase 2/3 placeholder.
+
+`(tabs)/progress.tsx` is likewise a real screen now: weight trend + history
+(with a "Log weight" link to `log-weight.tsx`) and sleep history (with a
+"Log sleep" link to `log-sleep.tsx`). `log-sleep.tsx` deliberately avoids
+adding a native date/time picker dependency (which would mean another native
+rebuild) — it takes a 24-hour "HH:MM" wake time plus hours slept as plain
+text/quick-pick chips, and derives `sleptAt`/`wokeAt` on the client, but the
+server still recomputes `durationMin` itself rather than trusting a
+client-sent value. Water logging lives on Home instead of Progress
+(`WaterCard`, quick-add buttons for common amounts) since it's a same-day,
+repeat-many-times-a-day action rather than a trend to review. Reminder
+preferences live on the Profile screen (`RemindersCard`) using React
+Native's built-in `Switch` — no new native dependency needed.
 
 State is split by concern:
 - **Auth identity** (`src/state/authStore.ts`, Zustand) — is the user logged

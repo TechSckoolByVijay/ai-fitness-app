@@ -58,6 +58,34 @@ export default function RootLayout() {
             name="log-meal"
             options={{ presentation: 'modal', headerShown: true, title: 'Log food or activity' }}
           />
+          <Stack.Screen
+            name="log-weight"
+            options={{ presentation: 'modal', headerShown: true, title: 'Log weight' }}
+          />
+          <Stack.Screen
+            name="log-sleep"
+            options={{ presentation: 'modal', headerShown: true, title: 'Log sleep' }}
+          />
+          <Stack.Screen
+            name="edit-body-info"
+            options={{ presentation: 'modal', headerShown: true, title: 'Edit body info' }}
+          />
+          <Stack.Screen
+            name="edit-goals"
+            options={{ presentation: 'modal', headerShown: true, title: 'Edit goal' }}
+          />
+          <Stack.Screen
+            name="edit-diet"
+            options={{ presentation: 'modal', headerShown: true, title: 'Edit diet' }}
+          />
+          <Stack.Screen
+            name="edit-allergies"
+            options={{ presentation: 'modal', headerShown: true, title: 'Edit allergies' }}
+          />
+          <Stack.Screen
+            name="edit-health-conditions"
+            options={{ presentation: 'modal', headerShown: true, title: 'Edit health conditions' }}
+          />
         </Stack>
       </QueryClientProvider>
     </SafeAreaProvider>

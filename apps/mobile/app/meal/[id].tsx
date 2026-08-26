@@ -5,6 +5,8 @@ import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, View } from 
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
 import { Text } from '../../src/components/ui/Text';
+import { TextField } from '../../src/components/ui/TextField';
+import { useCreateFavoriteFood } from '../../src/hooks/useFavorites';
 import { useCreateFoodEntry, useDeleteFoodEntry, useFoodEntries, useUpdateFoodEntry } from '../../src/hooks/useFoodEntries';
 import { useRequireAuth } from '../../src/hooks/useRequireAuth';
 import { formatTime } from '../../src/utils/date';
@@ -34,8 +36,10 @@ export default function MealDetailScreen() {
   const updateEntry = useUpdateFoodEntry();
   const deleteEntry = useDeleteFoodEntry();
   const createEntry = useCreateFoodEntry();
+  const createFavorite = useCreateFavoriteFood();
 
   const [items, setItems] = useState<FoodItemInput[] | null>(null);
+  const [favoriteNameDraft, setFavoriteNameDraft] = useState<string | null>(null);
   const editableItems = items ?? entry?.items ?? [];
   const isEditing = items !== null;
 
@@ -102,6 +106,20 @@ export default function MealDetailScreen() {
     goBackOrHome();
   };
 
+  const startSaveFavorite = () => {
+    setFavoriteNameDraft(entry.items.map((i) => i.name).join(', ').slice(0, 80));
+  };
+
+  const confirmSaveFavorite = async () => {
+    if (!favoriteNameDraft?.trim()) return;
+    await createFavorite.mutateAsync({
+      name: favoriteNameDraft.trim(),
+      mealType: entry.mealType,
+      items: entry.items,
+    });
+    setFavoriteNameDraft(null);
+  };
+
   const totals = sumNutrition(editableItems.map((i) => i.nutrition));
 
   return (
@@ -160,6 +178,25 @@ export default function MealDetailScreen() {
         <View className="gap-3">
           <Button label="Edit" onPress={() => setItems(entry.items)} />
           <Button label="Duplicate to now" variant="secondary" onPress={handleDuplicate} loading={createEntry.isPending} />
+
+          {favoriteNameDraft !== null ? (
+            <View className="gap-2">
+              <TextField label="Favorite name" value={favoriteNameDraft} onChangeText={setFavoriteNameDraft} />
+              <View className="flex-row gap-3">
+                <Button
+                  label="Save favorite"
+                  onPress={confirmSaveFavorite}
+                  loading={createFavorite.isPending}
+                  disabled={!favoriteNameDraft.trim()}
+                  className="flex-1"
+                />
+                <Button label="Cancel" variant="secondary" onPress={() => setFavoriteNameDraft(null)} />
+              </View>
+            </View>
+          ) : (
+            <Button label="Save as favorite" variant="secondary" onPress={startSaveFavorite} />
+          )}
+
           <Button label="Delete" variant="ghost" onPress={handleDelete} loading={deleteEntry.isPending} />
         </View>
       )}

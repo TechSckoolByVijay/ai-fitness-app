@@ -29,8 +29,9 @@ product loop.
 > the recipe" → numbered steps.
 
 See [PRODUCT.md](./PRODUCT.md) for the product principles and full acceptance
-criteria this build satisfies, and [ARCHITECTURE.md](./ARCHITECTURE.md) for
-the technical design and key decisions.
+criteria this build satisfies, [ARCHITECTURE.md](./ARCHITECTURE.md) for the
+technical design and key decisions, and [PLAN.md](./PLAN.md) for a live
+done/pending status tracker.
 
 ## Tech stack
 
@@ -112,10 +113,11 @@ Never commit real secrets. `.env` and `.env.test` are gitignored; only
 
 - **Schema**: `apps/api/prisma/schema.prisma` — normalized, UUID primary keys,
   `createdAt`/`updatedAt` timestamps, indexes on common query paths. Includes
-  the full table set from the spec (Phase 1 tables are fully wired; Phase 2-4
-  tables like `WaterEntry`, `SleepEntry`, `AiConversation`, etc. exist as
-  schema-only scaffolding so later phases are additive, not destructive,
-  migrations).
+  the full table set from the spec, modeled up front so later phases are
+  additive, not destructive, migrations. `WaterEntry`, `SleepEntry`,
+  `WeightEntry`, and `NotificationPreference` are now fully wired (Phase 2);
+  the remaining Phase 3-4 tables (`FrequentMeal`, `HealthIntegration`, etc.)
+  still exist as schema-only scaffolding.
 - **Migrations**: `npm run db:migrate` (wraps `prisma migrate dev`).
 - **Seed data**: `npm run db:seed` — creates a demo user (`demo@fitnessapp.local` / `demo1234`)
   with a vegetarian, weight-loss profile and 4 sample meals (banana + protein
@@ -127,10 +129,12 @@ Never commit real secrets. `.env` and `.env.test` are gitignored; only
 ## Running tests
 
 ```bash
-# Backend — 76 tests: unit (confidence tiers, nutrition math, zod validation,
-# daily aggregation, calorie-burn formula, coach context math, mock coach
-# responder) + integration (auth, food logging round-trip, dashboard, exercise
-# logging, coach chat round-trip), run against a real PostgreSQL test database.
+# Backend — 94 tests: unit (confidence tiers, nutrition math, zod validation,
+# daily aggregation incl. water/sleep sums, calorie-burn formula, sleep
+# duration calculation, coach context math, mock coach responder) +
+# integration (auth, food logging round-trip, dashboard, exercise logging,
+# coach chat round-trip, water/weight/sleep logging, notification
+# preferences), run against a real PostgreSQL test database.
 cd apps/api
 npm test
 # `pretest` auto-applies migrations to a separate `fitness_app_test` database
@@ -258,5 +262,3 @@ mobile app with `eas build` (Expo Application Services) rather than `expo start`
   that a second user cannot read, edit, or delete another user's data.
 - Sensitive fields (passwords, tokens) are redacted from logs.
 - No secrets are committed; `.env`/`.env.test` are gitignored.
-#   a i - f i t n e s s - a p p  
- 

@@ -7,7 +7,9 @@ import { EmptyState } from '../../src/components/ui/EmptyState';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { SkeletonBlock } from '../../src/components/ui/SkeletonBlock';
 import { Text } from '../../src/components/ui/Text';
+import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
 import { VoiceButton } from '../../src/components/VoiceButton';
+import { WaterCard } from '../../src/components/WaterCard';
 import { useDashboard } from '../../src/hooks/useDashboard';
 import { useMe } from '../../src/hooks/useMe';
 
@@ -26,6 +28,7 @@ export default function HomeScreen() {
   return (
     <View className="flex-1 bg-white dark:bg-surface-dark">
       <ScrollView contentContainerClassName="gap-5 px-5 pb-4 pt-4" showsVerticalScrollIndicator={false}>
+        <TopInsetSpacer />
         <Text variant="title">
           {getGreeting()}
           {firstName ? `, ${firstName}` : ''} 👋
@@ -70,6 +73,8 @@ export default function HomeScreen() {
                 />
               </View>
             </Card>
+
+            <WaterCard consumedMl={dashboard.data.waterConsumedMl} targetMl={dashboard.data.waterTargetMl} />
 
             {dashboard.data.activeCalories > 0 || dashboard.data.exerciseDurationMin > 0 ? (
               <Card>

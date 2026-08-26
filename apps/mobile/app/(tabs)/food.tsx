@@ -2,11 +2,14 @@ import type { FoodEntryDto } from '@fitness-app/shared';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
+import { FavoritesRow } from '../../src/components/FavoritesRow';
 import { FoodHistoryItem } from '../../src/components/FoodHistoryItem';
 import { Card } from '../../src/components/ui/Card';
 import { EmptyState } from '../../src/components/ui/EmptyState';
 import { SkeletonBlock } from '../../src/components/ui/SkeletonBlock';
 import { Text } from '../../src/components/ui/Text';
+import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
+import { useFavorites } from '../../src/hooks/useFavorites';
 import { useFoodEntries } from '../../src/hooks/useFoodEntries';
 import { dayLabel } from '../../src/utils/date';
 
@@ -33,12 +36,16 @@ function groupByDay(entries: FoodEntryDto[]): DayGroup[] {
 
 export default function FoodScreen() {
   const { data, isLoading } = useFoodEntries();
+  const favorites = useFavorites();
   const groups = useMemo(() => groupByDay(data?.entries ?? []), [data]);
 
   return (
     <View className="flex-1 bg-white dark:bg-surface-dark">
       <ScrollView contentContainerClassName="gap-6 p-5" showsVerticalScrollIndicator={false}>
+        <TopInsetSpacer />
         <Text variant="title">Food</Text>
+
+        <FavoritesRow favorites={favorites.data?.favorites ?? []} />
 
         {isLoading ? (
           <View className="gap-3">

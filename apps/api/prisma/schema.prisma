@@ -446,6 +446,7 @@ model FavoriteFood {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @db.Uuid
   name      String
+  mealType  MealType
   itemsJson Json
   createdAt DateTime @default(now())
 

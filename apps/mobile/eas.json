@@ -11,8 +11,9 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.31.47:4000/api/v1"
-      }
+        "EXPO_PUBLIC_API_URL": "https://lapped-earpiece-cortex.ngrok-free.dev/api/v1"
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
@@ -20,11 +21,13 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.31.47:4000/api/v1"
-      }
+        "EXPO_PUBLIC_API_URL": "https://lapped-earpiece-cortex.ngrok-free.dev/api/v1"
+      },
+      "channel": "preview"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "channel": "production"
     }
   },
   "submit": {

@@ -1,13 +1,5 @@
 import { useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  View,
-  type FlatList as FlatListType,
-} from 'react-native';
-import type { AiMessageDto } from '@fitness-app/shared';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { ApiError } from '../../src/api/client';
 import { ChatBubble } from '../../src/components/ChatBubble';
 import { Button } from '../../src/components/ui/Button';
@@ -15,7 +7,9 @@ import { Chip } from '../../src/components/ui/Chip';
 import { EmptyState } from '../../src/components/ui/EmptyState';
 import { Text } from '../../src/components/ui/Text';
 import { TextField } from '../../src/components/ui/TextField';
+import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
 import { useCoachConversation, useSendCoachMessage } from '../../src/hooks/useCoach';
+import { useVoiceRecognition } from '../../src/hooks/useVoiceRecognition';
 
 const STARTER_PROMPTS = [
   'Suggest a snack for me right now',
@@ -28,7 +22,7 @@ export default function CoachScreen() {
   const sendMessage = useSendCoachMessage();
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const listRef = useRef<FlatListType<AiMessageDto>>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   const messages = conversation.data?.conversation?.messages ?? [];
 
@@ -40,10 +34,22 @@ export default function CoachScreen() {
     setDraft('');
     try {
       await sendMessage.mutateAsync(trimmed);
-      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
       setDraft(trimmed);
+    }
+  };
+
+  const voice = useVoiceRecognition((finalText) => {
+    if (finalText.trim()) void submit(finalText);
+  });
+
+  const toggleVoice = () => {
+    if (voice.isListening) {
+      voice.stop();
+    } else {
+      void voice.start();
     }
   };
 
@@ -52,6 +58,7 @@ export default function CoachScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-white dark:bg-surface-dark"
     >
+      <TopInsetSpacer />
       {conversation.isLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#22b56d" />
@@ -70,15 +77,28 @@ export default function CoachScreen() {
           </View>
         </View>
       ) : (
-        <FlatList
-          ref={listRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
+        <ScrollView
+          ref={scrollRef}
           contentContainerClassName="gap-3 p-5"
-          renderItem={({ item }) => <ChatBubble message={item} />}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
-        />
+          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+        >
+          {messages.map((message) => (
+            <ChatBubble key={message.id} message={message} />
+          ))}
+        </ScrollView>
       )}
+
+      {voice.isListening ? (
+        <Text variant="caption" className="px-5 pb-1 italic">
+          {voice.transcript ? `"${voice.transcript}"` : 'Listening...'}
+        </Text>
+      ) : null}
+
+      {voice.error ? (
+        <Text variant="caption" className="px-5 text-red-500">
+          {voice.error}
+        </Text>
+      ) : null}
 
       {error ? (
         <Text variant="caption" className="px-5 text-red-500">
@@ -87,14 +107,25 @@ export default function CoachScreen() {
       ) : null}
 
       <View className="flex-row items-end gap-2 border-t border-gray-100 p-3 dark:border-gray-800">
-        <TextField
-          label=""
-          value={draft}
-          onChangeText={setDraft}
-          placeholder="Ask for a suggestion..."
-          multiline
-          className="flex-1"
-        />
+        <View className="flex-1">
+          <TextField
+            label=""
+            value={draft}
+            onChangeText={setDraft}
+            placeholder="Ask for a suggestion, or tap the mic..."
+            multiline
+          />
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={voice.isListening ? 'Stop listening' : 'Speak your message'}
+          onPress={toggleVoice}
+          className={`h-[52px] w-[52px] items-center justify-center rounded-xl ${
+            voice.isListening ? 'bg-red-100 dark:bg-red-900/40' : 'bg-muted-light dark:bg-muted-dark'
+          }`}
+        >
+          <Text className="text-xl">{voice.isListening ? '🔴' : '🎙️'}</Text>
+        </Pressable>
         <Button
           label="Send"
           onPress={() => submit(draft)}

@@ -7,7 +7,7 @@ import type {
   UpdateHealthConditionsRequest,
 } from '@fitness-app/shared';
 import { getMe } from '../users/users.service';
-import { calculateTargets } from './calorie-targets';
+import { recalculateProfileTargets } from './recalculate-targets';
 
 export async function updateGoals(
   prisma: PrismaClient,
@@ -23,6 +23,9 @@ export async function updateGoals(
       ],
     }),
   ]);
+  // The primary goal feeds the calorie-target adjustment (e.g. lose_weight
+  // -500 kcal) — recompute so changing it doesn't leave targets stale.
+  await recalculateProfileTargets(prisma, userId);
   return getMe(prisma, userId);
 }
 
@@ -72,32 +75,13 @@ export async function updateHealthConditions(
 }
 
 export async function completeOnboarding(prisma: PrismaClient, userId: string): Promise<MeResponse> {
-  const [profile, primaryGoal] = await Promise.all([
-    prisma.profile.findUnique({ where: { userId } }),
-    prisma.goal.findFirst({ where: { userId, isPrimary: true } }),
-  ]);
-
-  const targets = calculateTargets({
-    sex: profile?.sex ?? null,
-    dateOfBirth: profile?.dateOfBirth ?? null,
-    heightCm: profile?.heightCm ? Number(profile.heightCm) : null,
-    currentWeightKg: profile?.currentWeightKg ? Number(profile.currentWeightKg) : null,
-    activityLevel: profile?.activityLevel ?? null,
-    primaryGoal: primaryGoal?.type ?? null,
-  });
-
   await prisma.profile.upsert({
     where: { userId },
-    update: {
-      onboardingCompletedAt: new Date(),
-      ...(targets ?? {}),
-    },
-    create: {
-      userId,
-      onboardingCompletedAt: new Date(),
-      ...(targets ?? {}),
-    },
+    update: { onboardingCompletedAt: new Date() },
+    create: { userId, onboardingCompletedAt: new Date() },
   });
+
+  await recalculateProfileTargets(prisma, userId);
 
   return getMe(prisma, userId);
 }

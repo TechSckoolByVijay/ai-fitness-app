@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sumEntryNutrition, toDateOnly } from '../../src/modules/daily-summary';
+import { sumEntryNutrition, sumSleepMinutes, sumWaterMl, toDateOnly } from '../../src/modules/daily-summary';
 
 describe('sumEntryNutrition', () => {
   it('sums nutrition across multiple entries and items', () => {
@@ -54,5 +54,25 @@ describe('toDateOnly', () => {
   it('truncates a UTC datetime to midnight UTC of the same day', () => {
     const result = toDateOnly(new Date('2026-08-25T14:37:12.123Z'));
     expect(result.toISOString()).toBe('2026-08-25T00:00:00.000Z');
+  });
+});
+
+describe('sumWaterMl', () => {
+  it('sums amountMl across multiple entries', () => {
+    expect(sumWaterMl([{ amountMl: 250 }, { amountMl: 500 }, { amountMl: 250 }])).toBe(1000);
+  });
+
+  it('returns 0 for no entries', () => {
+    expect(sumWaterMl([])).toBe(0);
+  });
+});
+
+describe('sumSleepMinutes', () => {
+  it('sums durationMin across multiple entries (e.g. a nap plus the main night sleep)', () => {
+    expect(sumSleepMinutes([{ durationMin: 420 }, { durationMin: 30 }])).toBe(450);
+  });
+
+  it('returns 0 for no entries', () => {
+    expect(sumSleepMinutes([])).toBe(0);
   });
 });

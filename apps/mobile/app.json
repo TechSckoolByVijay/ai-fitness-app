@@ -3,7 +3,7 @@
     "name": "Fitness Coach",
     "slug": "fitness-coach",
     "scheme": "fitnesscoach",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -36,6 +36,7 @@
       "expo-router",
       "expo-status-bar",
       "expo-secure-store",
+      "expo-notifications",
       [
         "expo-speech-recognition",
         {
@@ -56,6 +57,12 @@
         "projectId": "d6573cf2-1010-408f-9406-978cffff44c4"
       }
     },
-    "owner": "vijaysaini1992"
+    "owner": "vijaysaini1992",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d6573cf2-1010-408f-9406-978cffff44c4"
+    }
   }
 }

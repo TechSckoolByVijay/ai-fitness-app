@@ -1,8 +1,11 @@
+import { router } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
 import { SkeletonBlock } from '../../src/components/ui/SkeletonBlock';
 import { Text } from '../../src/components/ui/Text';
+import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
+import { RemindersCard } from '../../src/components/RemindersCard';
 import { ThemeToggle } from '../../src/components/ThemeToggle';
 import { useLogout } from '../../src/hooks/useAuth';
 import { useMe } from '../../src/hooks/useMe';
@@ -18,12 +21,22 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+function CardHeader({ title, onEdit }: { title: string; onEdit: () => void }) {
+  return (
+    <View className="mb-2 flex-row items-center justify-between">
+      <Text variant="subtitle">{title}</Text>
+      <Button label="Edit" variant="ghost" onPress={onEdit} />
+    </View>
+  );
+}
+
 export default function ProfileScreen() {
   const me = useMe();
   const logout = useLogout();
 
   return (
     <ScrollView className="flex-1 bg-white dark:bg-surface-dark" contentContainerClassName="gap-5 p-5">
+      <TopInsetSpacer />
       <Text variant="title">Profile</Text>
 
       <ThemeToggle />
@@ -41,26 +54,30 @@ export default function ProfileScreen() {
           </Card>
 
           <Card>
-            <Text variant="subtitle" className="mb-2">
-              Body & Goals
-            </Text>
+            <CardHeader title="Body info" onEdit={() => router.push('/edit-body-info')} />
             <Row label="Height" value={me.data.profile.heightCm ? `${me.data.profile.heightCm} cm` : '—'} />
             <Row label="Current weight" value={me.data.profile.currentWeightKg ? `${me.data.profile.currentWeightKg} kg` : '—'} />
             <Row label="Target weight" value={me.data.profile.targetWeightKg ? `${me.data.profile.targetWeightKg} kg` : '—'} />
             <Row label="Activity level" value={me.data.profile.activityLevel?.replace('_', ' ') ?? '—'} />
-            <Row
-              label="Primary goal"
-              value={me.data.goals.find((g) => g.isPrimary)?.type.replace('_', ' ') ?? '—'}
-            />
             <Row label="Calorie target" value={me.data.profile.calorieTarget ? `${me.data.profile.calorieTarget} kcal` : '—'} />
             <Row label="Protein target" value={me.data.profile.proteinTarget ? `${me.data.profile.proteinTarget} g` : '—'} />
           </Card>
 
           <Card>
-            <Text variant="subtitle" className="mb-2">
-              Diet & Allergies
-            </Text>
+            <CardHeader title="Goal" onEdit={() => router.push('/edit-goals')} />
+            <Row
+              label="Primary goal"
+              value={me.data.goals.find((g) => g.isPrimary)?.type.replace('_', ' ') ?? '—'}
+            />
+          </Card>
+
+          <Card>
+            <CardHeader title="Diet" onEdit={() => router.push('/edit-diet')} />
             <Row label="Diet" value={me.data.dietPreference?.dietType.replace('_', ' ') ?? '—'} />
+          </Card>
+
+          <Card>
+            <CardHeader title="Allergies" onEdit={() => router.push('/edit-allergies')} />
             <Row
               label="Allergies"
               value={me.data.allergies.length ? me.data.allergies.map((a) => a.type).join(', ') : 'None'}
@@ -68,10 +85,23 @@ export default function ProfileScreen() {
           </Card>
 
           <Card>
+            <CardHeader title="Health conditions" onEdit={() => router.push('/edit-health-conditions')} />
+            <Row
+              label="Conditions"
+              value={
+                me.data.healthConditions.length
+                  ? me.data.healthConditions.map((c) => c.type.replace('_', ' ')).join(', ')
+                  : 'None'
+              }
+            />
+          </Card>
+
+          <RemindersCard />
+
+          <Card>
             <Text variant="subtitle" className="mb-2">
               Settings
             </Text>
-            <Row label="Notifications" value="Coming soon" />
             <Row label="Health integrations" value="Coming soon" />
             <Row label="Privacy & data export" value="Coming soon" />
           </Card>

@@ -9,7 +9,7 @@ interface TextFieldProps extends TextInputProps {
 export function TextField({ label, error, className = '', ...props }: TextFieldProps & { className?: string }) {
   return (
     <View className="gap-1.5">
-      <Text variant="caption">{label}</Text>
+      {label ? <Text variant="caption">{label}</Text> : null}
       <TextInput
         className={`min-h-[52px] rounded-xl border border-gray-200 bg-white px-4 text-base text-gray-900 dark:border-gray-700 dark:bg-muted-dark dark:text-gray-50 ${className}`}
         placeholderTextColor="#9ca3af"

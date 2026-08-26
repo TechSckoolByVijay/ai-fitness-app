@@ -67,13 +67,32 @@ export function sumExerciseTotals(entries: ExerciseEntryLike[]): DailyExerciseTo
   );
 }
 
+interface WaterEntryLike {
+  amountMl: number;
+}
+
+export function sumWaterMl(entries: WaterEntryLike[]): number {
+  return entries.reduce((sum, entry) => sum + entry.amountMl, 0);
+}
+
+interface SleepEntryLike {
+  durationMin: number;
+}
+
+export function sumSleepMinutes(entries: SleepEntryLike[]): number {
+  return entries.reduce((sum, entry) => sum + entry.durationMin, 0);
+}
+
 /**
  * Recomputes a user's DailySummary for a given date directly from the
- * underlying FoodEntry and ExerciseEntry rows, rather than incrementally
- * patching totals — the daily state is derived from source events (spec
- * section 14/15), which keeps corrections/edits/deletes trivially correct
- * instead of needing careful +/- bookkeeping. Covers both food and exercise
- * since both roll up into the same DailySummary row.
+ * underlying FoodEntry, ExerciseEntry, WaterEntry, and SleepEntry rows,
+ * rather than incrementally patching totals — the daily state is derived
+ * from source events (spec section 14/15), which keeps corrections/edits/
+ * deletes trivially correct instead of needing careful +/- bookkeeping.
+ *
+ * Sleep is bucketed by wokeAt (not sleptAt) — a night's sleep is credited to
+ * the day the user woke up, matching the convention most sleep trackers use,
+ * since sleptAt usually falls on the previous calendar day.
  */
 export async function recomputeDailySummary(
   prisma: PrismaClient,
@@ -83,7 +102,7 @@ export async function recomputeDailySummary(
   const start = date;
   const end = new Date(date.getTime() + 24 * 60 * 60 * 1000);
 
-  const [foodEntries, exerciseEntries] = await Promise.all([
+  const [foodEntries, exerciseEntries, waterEntries, sleepEntries] = await Promise.all([
     prisma.foodEntry.findMany({
       where: { userId, loggedAt: { gte: start, lt: end } },
       include: { items: { include: { nutrition: true } } },
@@ -91,10 +110,18 @@ export async function recomputeDailySummary(
     prisma.exerciseEntry.findMany({
       where: { userId, loggedAt: { gte: start, lt: end } },
     }),
+    prisma.waterEntry.findMany({
+      where: { userId, loggedAt: { gte: start, lt: end } },
+    }),
+    prisma.sleepEntry.findMany({
+      where: { userId, wokeAt: { gte: start, lt: end } },
+    }),
   ]);
 
   const nutritionTotals = sumEntryNutrition(foodEntries);
   const exerciseTotals = sumExerciseTotals(exerciseEntries);
+  const waterConsumedMl = sumWaterMl(waterEntries);
+  const sleepDurationMin = sumSleepMinutes(sleepEntries);
 
   await prisma.dailySummary.upsert({
     where: { userId_date: { userId, date } },
@@ -106,6 +133,8 @@ export async function recomputeDailySummary(
       fiberConsumed: nutritionTotals.fiberG,
       activeCalories: exerciseTotals.activeCalories,
       exerciseDurationMin: exerciseTotals.exerciseDurationMin,
+      waterConsumedMl,
+      sleepDurationMin,
     },
     create: {
       userId,
@@ -117,6 +146,8 @@ export async function recomputeDailySummary(
       fiberConsumed: nutritionTotals.fiberG,
       activeCalories: exerciseTotals.activeCalories,
       exerciseDurationMin: exerciseTotals.exerciseDurationMin,
+      waterConsumedMl,
+      sleepDurationMin,
     },
   });
 }
