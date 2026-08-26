@@ -3,14 +3,17 @@ import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, View } from 'react-native';
 import { Button } from '../../src/components/ui/Button';
+import { CalorieSlider } from '../../src/components/ui/CalorieSlider';
 import { Card } from '../../src/components/ui/Card';
 import { Text } from '../../src/components/ui/Text';
 import { TextField } from '../../src/components/ui/TextField';
+import { useCalorieSliderBounds } from '../../src/hooks/useCalorieSliderBounds';
 import { useCreateFavoriteFood } from '../../src/hooks/useFavorites';
 import { useCreateFoodEntry, useDeleteFoodEntry, useFoodEntries, useUpdateFoodEntry } from '../../src/hooks/useFoodEntries';
 import { useRequireAuth } from '../../src/hooks/useRequireAuth';
 import { formatTime } from '../../src/utils/date';
 import { goBackOrHome } from '../../src/utils/navigation';
+import { scaleNutritionToCalories } from '../../src/utils/nutritionOverride';
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
@@ -42,6 +45,7 @@ export default function MealDetailScreen() {
   const [favoriteNameDraft, setFavoriteNameDraft] = useState<string | null>(null);
   const editableItems = items ?? entry?.items ?? [];
   const isEditing = items !== null;
+  const getBounds = useCalorieSliderBounds(id ?? 'meal');
 
   if (!isAuthenticated) {
     return (
@@ -80,6 +84,13 @@ export default function MealDetailScreen() {
         fiberG: round1((item.nutrition.fiberG ?? 0) * scale),
       },
     };
+    setItems(next);
+  };
+
+  const adjustCalories = (index: number, calories: number) => {
+    const base = items ?? entry.items;
+    const next = [...base];
+    next[index] = { ...next[index], nutrition: scaleNutritionToCalories(next[index].nutrition, calories) };
     setItems(next);
   };
 
@@ -135,32 +146,45 @@ export default function MealDetailScreen() {
       ) : null}
 
       <Card className="gap-3">
-        {editableItems.map((item, index) => (
-          <View key={index} className="flex-row items-center justify-between">
-            <Text variant="body" className="flex-1 capitalize">
-              {item.quantity} {item.unit} {item.name}
-            </Text>
-            <View className="flex-row items-center gap-2">
-              <Text variant="caption">{Math.round(item.nutrition.calories)} kcal</Text>
-              {isEditing ? (
-                <View className="flex-row gap-1">
-                  <Pressable
-                    onPress={() => adjustQuantity(index, -1)}
-                    className="h-8 w-8 items-center justify-center rounded-full bg-muted-light dark:bg-muted-dark"
-                  >
-                    <Text variant="body">−</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => adjustQuantity(index, 1)}
-                    className="h-8 w-8 items-center justify-center rounded-full bg-muted-light dark:bg-muted-dark"
-                  >
-                    <Text variant="body">+</Text>
-                  </Pressable>
+        {editableItems.map((item, index) => {
+          const bounds = getBounds(index, item.quantity, item.nutrition.calories);
+          return (
+            <View key={index} className="gap-2">
+              <View className="flex-row items-center justify-between">
+                <Text variant="body" className="flex-1 capitalize">
+                  {item.quantity} {item.unit} {item.name}
+                </Text>
+                <View className="flex-row items-center gap-2">
+                  <Text variant="caption">{Math.round(item.nutrition.calories)} kcal</Text>
+                  {isEditing ? (
+                    <View className="flex-row gap-1">
+                      <Pressable
+                        onPress={() => adjustQuantity(index, -1)}
+                        className="h-8 w-8 items-center justify-center rounded-full bg-muted-light dark:bg-muted-dark"
+                      >
+                        <Text variant="body">−</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => adjustQuantity(index, 1)}
+                        className="h-8 w-8 items-center justify-center rounded-full bg-muted-light dark:bg-muted-dark"
+                      >
+                        <Text variant="body">+</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
                 </View>
+              </View>
+              {isEditing ? (
+                <CalorieSlider
+                  calories={item.nutrition.calories}
+                  minCalories={bounds.min}
+                  maxCalories={bounds.max}
+                  onChange={(calories) => adjustCalories(index, calories)}
+                />
               ) : null}
             </View>
-          </View>
-        ))}
+          );
+        })}
         <View className="border-t border-gray-100 pt-2 dark:border-gray-800">
           <Text variant="subtitle">{Math.round(totals.calories)} kcal total</Text>
           <Text variant="caption">

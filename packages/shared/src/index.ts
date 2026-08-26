@@ -17,3 +17,4 @@ export * from './schemas/weight-entry.schema';
 export * from './schemas/sleep-entry.schema';
 export * from './schemas/notification-preference.schema';
 export * from './schemas/favorite-food.schema';
+export * from './schemas/frequent-meal.schema';

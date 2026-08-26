@@ -129,12 +129,14 @@ Never commit real secrets. `.env` and `.env.test` are gitignored; only
 ## Running tests
 
 ```bash
-# Backend — 94 tests: unit (confidence tiers, nutrition math, zod validation,
+# Backend — 112 tests: unit (confidence tiers, nutrition math, zod validation,
 # daily aggregation incl. water/sleep sums, calorie-burn formula, sleep
-# duration calculation, coach context math, mock coach responder) +
-# integration (auth, food logging round-trip, dashboard, exercise logging,
-# coach chat round-trip, water/weight/sleep logging, notification
-# preferences), run against a real PostgreSQL test database.
+# duration calculation, frequent-meal signature matching, coach context math,
+# mock coach responder) + integration (auth, food logging round-trip,
+# dashboard, exercise logging, coach chat round-trip, water/weight/sleep
+# logging, notification preferences, editable onboarding answers, favorite
+# foods, frequent-meal suggestions), run against a real PostgreSQL test
+# database.
 cd apps/api
 npm test
 # `pretest` auto-applies migrations to a separate `fitness_app_test` database

@@ -40,3 +40,19 @@ export const DashboardTodaySchema = z.object({
   activities: z.array(DashboardActivitySummarySchema),
 });
 export type DashboardToday = z.infer<typeof DashboardTodaySchema>;
+
+export const DashboardHistoryDaySchema = z.object({
+  date: z.string(),
+  caloriesConsumed: z.number().nonnegative(),
+  proteinConsumed: z.number().nonnegative(),
+  carbsConsumed: z.number().nonnegative(),
+  fatConsumed: z.number().nonnegative(),
+});
+export type DashboardHistoryDay = z.infer<typeof DashboardHistoryDaySchema>;
+
+export const DashboardHistorySchema = z.object({
+  days: z.array(DashboardHistoryDaySchema),
+  calorieTarget: z.number().nullable(),
+  proteinTarget: z.number().nullable(),
+});
+export type DashboardHistory = z.infer<typeof DashboardHistorySchema>;

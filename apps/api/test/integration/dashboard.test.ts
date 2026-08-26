@@ -119,3 +119,76 @@ describe('GET /dashboard/today', () => {
     expect(response.statusCode).toBe(401);
   });
 });
+
+describe('GET /dashboard/history', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('defaults to 14 days, zero-filled, oldest first, ending today', async () => {
+    const registerRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      payload: { email: uniqueEmail('hist-empty'), password: 'password123', name: 'Hist Tester' },
+    });
+    const { accessToken } = registerRes.json();
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/dashboard/history',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.days).toHaveLength(14);
+    expect(body.days.every((d: { caloriesConsumed: number }) => d.caloriesConsumed === 0)).toBe(true);
+    expect(body.days[13].date).toBe(new Date().toISOString().slice(0, 10));
+    expect(body.calorieTarget).toBeNull();
+  });
+
+  it('respects a custom ?days= and includes today\'s logged totals', async () => {
+    const registerRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      payload: { email: uniqueEmail('hist-days'), password: 'password123', name: 'Hist Tester' },
+    });
+    const { accessToken } = registerRes.json();
+    const nowISO = new Date().toISOString();
+
+    const interpretRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/events/interpret',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { text: 'I ate a banana.', nowISO },
+    });
+    const { meal } = interpretRes.json().event;
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/food/entries',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { mealType: meal.mealType, loggedAt: meal.loggedAt, items: meal.items },
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/dashboard/history?days=7',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+
+    const body = response.json();
+    expect(body.days).toHaveLength(7);
+    expect(body.days[6].caloriesConsumed).toBeGreaterThan(0);
+  });
+
+  it('rejects unauthenticated requests', async () => {
+    const response = await app.inject({ method: 'GET', url: '/api/v1/dashboard/history' });
+    expect(response.statusCode).toBe(401);
+  });
+});

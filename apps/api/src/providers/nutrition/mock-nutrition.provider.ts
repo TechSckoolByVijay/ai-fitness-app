@@ -1,8 +1,7 @@
 import type { NutritionEstimate } from '@fitness-app/shared';
-import { findFoodEntry, type FoodTableEntry, type Per100g } from './food-table';
+import { findFoodEntry, type FoodTableEntry } from './food-table';
+import { applyPreparationAdjustment, FALLBACK_PER_100G } from './nutrition-adjustments';
 import type { NutritionLookupInput, NutritionService } from './nutrition-service.interface';
-
-const FALLBACK_PER_100G: Per100g = { calories: 150, proteinG: 5, carbsG: 15, fatG: 6, fiberG: 1 };
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
@@ -26,19 +25,6 @@ function resolveGrams(
   }
 
   return quantity * 100;
-}
-
-/** Less/more-oily descriptors shift fat (and its calorie contribution) rather than inventing a new dish. */
-function applyPreparationAdjustment(per100g: Per100g, preparationMethod?: string): Per100g {
-  if (preparationMethod === 'less_oily') {
-    const fatDelta = per100g.fatG * 0.3;
-    return { ...per100g, fatG: per100g.fatG - fatDelta, calories: per100g.calories - fatDelta * 9 };
-  }
-  if (preparationMethod === 'more_oily') {
-    const fatDelta = per100g.fatG * 0.3;
-    return { ...per100g, fatG: per100g.fatG + fatDelta, calories: per100g.calories + fatDelta * 9 };
-  }
-  return per100g;
 }
 
 export class MockNutritionProvider implements NutritionService {

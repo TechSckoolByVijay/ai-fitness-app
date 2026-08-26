@@ -2,7 +2,9 @@ import { InterpretedActivitySchema, type ExerciseExtractionEvent, type Interpret
 import { classifyItemConfidence, shouldAutoLog } from '../confidence';
 import { calculateCaloriesBurned } from './calorie-burn';
 
-const DEFAULT_AUTO_LOG_SETTING = true;
+// Kept in sync with food.service.ts's identical default: never persist
+// without an explicit user confirm, regardless of confidence tier.
+const DEFAULT_AUTO_LOG_SETTING = false;
 
 /**
  * Pure, synchronous — the AI event only supplies WHAT was done; the calorie

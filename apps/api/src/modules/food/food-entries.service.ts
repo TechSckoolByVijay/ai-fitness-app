@@ -11,6 +11,7 @@ import {
 import { NotFoundError } from '../../lib/errors';
 import { classifyItemConfidence, classifyMealConfidence } from '../confidence';
 import { recomputeDailySummary, toDateOnly } from '../daily-summary';
+import { trackFrequentMeal } from './frequent-meal-tracking';
 
 type FoodEntryWithItems = Prisma.FoodEntryGetPayload<{
   include: { items: { include: { nutrition: true } } };
@@ -106,6 +107,7 @@ export async function createFoodEntry(
   });
 
   await recomputeDailySummary(prisma, userId, toDateOnly(entry.loggedAt));
+  await trackFrequentMeal(prisma, userId, input.mealType, input.items);
 
   return toFoodEntryDto(entry);
 }

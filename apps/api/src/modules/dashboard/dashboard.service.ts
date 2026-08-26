@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import type { DashboardToday } from '@fitness-app/shared';
+import type { DashboardHistory, DashboardToday } from '@fitness-app/shared';
 import { toDateOnly } from '../daily-summary';
 
 function round1(value: number): number {
@@ -82,5 +82,51 @@ export async function getTodayDashboard(prisma: PrismaClient, userId: string): P
     exerciseDurationMin: summary?.exerciseDurationMin ?? 0,
     meals,
     activities,
+  };
+}
+
+/**
+ * Backs the Progress tab's trend charts. Returns one row per calendar day in
+ * [today - (days-1), today], oldest first, defaulting to zero for days with
+ * no DailySummary row (never logged, not "unknown") so the chart renders a
+ * continuous, gap-free axis.
+ */
+export async function getDashboardHistory(
+  prisma: PrismaClient,
+  userId: string,
+  days: number,
+): Promise<DashboardHistory> {
+  const today = toDateOnly(new Date());
+  const start = new Date(today.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+  const end = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+
+  const [profile, summaries] = await Promise.all([
+    prisma.profile.findUnique({ where: { userId } }),
+    prisma.dailySummary.findMany({
+      where: { userId, date: { gte: start, lt: end } },
+      orderBy: { date: 'asc' },
+    }),
+  ]);
+
+  const summaryByDate = new Map(summaries.map((s) => [s.date.toISOString().slice(0, 10), s]));
+
+  const historyDays = Array.from({ length: days }, (_, i) => {
+    const date = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
+    const key = date.toISOString().slice(0, 10);
+    const summary = summaryByDate.get(key);
+
+    return {
+      date: key,
+      caloriesConsumed: summary ? round1(Number(summary.caloriesConsumed)) : 0,
+      proteinConsumed: summary ? round1(Number(summary.proteinConsumed)) : 0,
+      carbsConsumed: summary ? round1(Number(summary.carbsConsumed)) : 0,
+      fatConsumed: summary ? round1(Number(summary.fatConsumed)) : 0,
+    };
+  });
+
+  return {
+    days: historyDays,
+    calorieTarget: profile?.calorieTarget ?? null,
+    proteinTarget: profile?.proteinTarget ?? null,
   };
 }

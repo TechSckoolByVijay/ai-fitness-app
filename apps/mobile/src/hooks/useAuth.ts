@@ -1,6 +1,7 @@
-import type { LoginRequest, RegisterRequest } from '@fitness-app/shared';
+import type { DeleteAccountRequest, LoginRequest, RegisterRequest } from '@fitness-app/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { login as loginRequest, logout as logoutRequest, register as registerRequest } from '../api/auth.api';
+import { deleteAccount as deleteAccountRequest } from '../api/users.api';
 import { getRefreshToken, useAuthStore } from '../state/authStore';
 
 export function useLogin() {
@@ -40,6 +41,19 @@ export function useLogout() {
         await logoutRequest(refreshToken).catch(() => undefined);
       }
     },
+    onSuccess: async () => {
+      await clearSession();
+      queryClient.clear();
+    },
+  });
+}
+
+export function useDeleteAccount() {
+  const clearSession = useAuthStore((s) => s.clearSession);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: DeleteAccountRequest) => deleteAccountRequest(input),
     onSuccess: async () => {
       await clearSession();
       queryClient.clear();

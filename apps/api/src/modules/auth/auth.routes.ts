@@ -7,16 +7,22 @@ import {
 import type { FastifyInstance } from 'fastify';
 import { loginUser, logoutUser, refreshTokens, registerUser } from './auth.service';
 
+// Stricter than the app-wide default (app.ts) — register/login are the
+// highest-value target for credential-stuffing or spam-account abuse once
+// this API is reachable from the public internet, so they get their own
+// tighter per-IP ceiling rather than relying on the generic 200/min limit.
+const AUTH_RATE_LIMIT = { max: 10, timeWindow: '1 minute' };
+
 export async function authRoutes(app: FastifyInstance) {
   const signAccessToken = (userId: string) => app.jwt.sign({ sub: userId });
 
-  app.post('/auth/register', async (request, reply) => {
+  app.post('/auth/register', { config: { rateLimit: AUTH_RATE_LIMIT } }, async (request, reply) => {
     const body = RegisterRequestSchema.parse(request.body);
     const result = await registerUser(app.prisma, app.env, signAccessToken, body);
     reply.status(201).send(AuthResponseSchema.parse(result));
   });
 
-  app.post('/auth/login', async (request, reply) => {
+  app.post('/auth/login', { config: { rateLimit: AUTH_RATE_LIMIT } }, async (request, reply) => {
     const body = LoginRequestSchema.parse(request.body);
     const result = await loginUser(app.prisma, app.env, signAccessToken, body);
     reply.send(AuthResponseSchema.parse(result));

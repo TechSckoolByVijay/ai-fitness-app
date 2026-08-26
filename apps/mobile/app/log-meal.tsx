@@ -1,5 +1,5 @@
 import { sumNutrition, type InterpretedActivity, type InterpretedMeal } from '@fitness-app/shared';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { ApiError } from '../src/api/client';
 import { ActivityInterpretationCard } from '../src/components/ActivityInterpretationCard';
@@ -15,6 +15,7 @@ import { useRequireAuth } from '../src/hooks/useRequireAuth';
 import { useVoiceRecognition } from '../src/hooks/useVoiceRecognition';
 import { useVoiceMachine } from '../src/state/voiceMachine';
 import { goBackOrHome } from '../src/utils/navigation';
+import { scaleNutritionToCalories } from '../src/utils/nutritionOverride';
 
 const EXAMPLE_PHRASES = [
   'I ate a banana.',
@@ -135,6 +136,18 @@ export default function LogMealScreen() {
     });
   };
 
+  const adjustCalories = (index: number, calories: number) => {
+    if (state.status !== 'interpretation' || state.event.type !== 'food') return;
+    const meal = state.event.meal;
+    const items = [...meal.items];
+    items[index] = { ...items[index], nutrition: scaleNutritionToCalories(items[index].nutrition, calories) };
+
+    dispatch({
+      type: 'UPDATE_MEAL',
+      meal: { ...meal, items, estimatedTotals: sumNutrition(items.map((i) => i.nutrition)) },
+    });
+  };
+
   const removeItem = (index: number) => {
     if (state.status !== 'interpretation' || state.event.type !== 'food') return;
     const meal = state.event.meal;
@@ -160,6 +173,19 @@ export default function LogMealScreen() {
     voice.stop();
     dispatch({ type: 'CANCEL' });
   };
+
+  // The mic button that opens this screen already IS the "I want to speak"
+  // gesture — requiring a second tap here once the screen loads was
+  // reported as bad UX. Auto-start listening immediately instead; typing is
+  // still available on the recording screen below for anyone who prefers it.
+  const hasAutoStartedRef = useRef(false);
+  useEffect(() => {
+    if (isAuthenticated && !hasAutoStartedRef.current) {
+      hasAutoStartedRef.current = true;
+      void startRecording();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   if (!isAuthenticated) {
     return (
@@ -264,6 +290,7 @@ export default function LogMealScreen() {
             isSubmitting={isSubmitting}
             onConfirm={() => persistMeal(foodEvent.meal)}
             onAdjustQuantity={adjustQuantity}
+            onAdjustCalories={adjustCalories}
             onRemoveItem={removeItem}
             onQuickOption={(option) => runInterpret(option)}
             onRetype={retype}

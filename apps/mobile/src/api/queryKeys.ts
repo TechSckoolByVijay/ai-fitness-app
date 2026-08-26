@@ -1,6 +1,7 @@
 export const queryKeys = {
   me: ['me'] as const,
   dashboardToday: ['dashboard', 'today'] as const,
+  dashboardHistory: (days: number) => ['dashboard', 'history', days] as const,
   foodEntries: (date?: string) => ['food', 'entries', date ?? 'all'] as const,
   exerciseEntries: (date?: string) => ['exercise', 'entries', date ?? 'all'] as const,
   coachConversation: ['coach', 'conversation'] as const,
@@ -9,4 +10,5 @@ export const queryKeys = {
   sleepEntries: ['sleep', 'entries'] as const,
   notificationPreferences: ['notification-preferences'] as const,
   favorites: ['favorites'] as const,
+  frequentMeals: ['frequent-meals'] as const,
 };

@@ -432,6 +432,9 @@ model FrequentMeal {
   id         String    @id @default(uuid()) @db.Uuid
   userId     String    @db.Uuid
   name       String
+  mealType   MealType
+  /// mealType + sorted lowercase item names — how repeats of "the same meal" are detected regardless of exact quantity.
+  signature  String
   itemsJson  Json
   useCount   Int       @default(0)
   lastUsedAt DateTime?
@@ -439,6 +442,7 @@ model FrequentMeal {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, signature])
   @@index([userId])
 }
 

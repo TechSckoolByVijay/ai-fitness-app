@@ -39,7 +39,7 @@ describe('food logging round trip', () => {
     expect(meal.items).toHaveLength(1);
     expect(meal.items[0].name).toBe('banana');
     expect(meal.tier).toBe('high');
-    expect(meal.autoLog).toBe(true);
+    expect(meal.autoLog).toBe(false);
     expect(meal.estimatedTotals.calories).toBeGreaterThan(0);
 
     // Not persisted yet — dashboard should still show zero.

@@ -108,6 +108,13 @@ export const FOOD_TABLE: FoodTableEntry[] = [
     per100g: { calories: 65, proteinG: 6, carbsG: 5, fatG: 2, fiberG: 0.5 },
   },
   {
+    canonicalName: 'water',
+    aliases: ['water', 'plain water', 'glass of water'],
+    defaultUnit: 'glass',
+    gramsPerUnit: { glass: 250, cup: 200, bottle: 500, liter: 1000, l: 1000, ml: 1 },
+    per100g: { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, fiberG: 0, sodiumMg: 0 },
+  },
+  {
     canonicalName: 'sugar',
     aliases: ['sugar'],
     defaultUnit: 'teaspoon',

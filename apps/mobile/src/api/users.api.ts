@@ -1,4 +1,5 @@
 import type {
+  DeleteAccountRequest,
   MeResponse,
   UpdateAllergiesRequest,
   UpdateDietRequest,
@@ -34,4 +35,8 @@ export function updateHealthConditions(input: UpdateHealthConditionsRequest) {
 
 export function completeOnboarding() {
   return apiRequest<MeResponse>('/me/onboarding/complete', { method: 'POST' });
+}
+
+export function deleteAccount(input: DeleteAccountRequest) {
+  return apiRequest<void>('/me', { method: 'DELETE', body: input });
 }

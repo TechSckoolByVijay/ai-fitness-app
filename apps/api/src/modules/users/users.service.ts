@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import type { MeResponse, UpdateProfileRequest } from '@fitness-app/shared';
-import { NotFoundError } from '../../lib/errors';
+import { NotFoundError, UnauthorizedError, ValidationError } from '../../lib/errors';
+import { verifyPassword } from '../auth/password';
 import { recalculateProfileTargets } from '../onboarding/recalculate-targets';
 
 function toNumber(value: unknown): number | null {
@@ -84,4 +85,35 @@ export async function updateProfile(
   await recalculateProfileTargets(prisma, userId);
 
   return getMe(prisma, userId);
+}
+
+/**
+ * Permanently deletes the account and every row that references it (Prisma
+ * schema has `onDelete: Cascade` on every user-owned table, so a single
+ * `user.delete` is sufficient — no manual cleanup of food entries, meals,
+ * conversations, etc. needed).
+ *
+ * Required so the app satisfies Google Play's User Data policy, which
+ * mandates in-app account deletion for any app that supports account
+ * creation. Password re-confirmation is required for email/password
+ * accounts as a safeguard against deleting via a merely-stolen access
+ * token; OAuth accounts (once Google Sign-In exists) skip it since the JWT
+ * itself is the confirmation there.
+ */
+export async function deleteAccount(prisma: PrismaClient, userId: string, password?: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  if (user.authProvider === 'email') {
+    if (!password) {
+      throw new ValidationError('Password is required to delete this account');
+    }
+    if (!user.passwordHash || !(await verifyPassword(user.passwordHash, password))) {
+      throw new UnauthorizedError('Incorrect password');
+    }
+  }
+
+  await prisma.user.delete({ where: { id: userId } });
 }

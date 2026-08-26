@@ -81,3 +81,8 @@ export const MeResponseSchema = z.object({
   ),
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
+
+export const DeleteAccountRequestSchema = z.object({
+  password: z.string().optional(),
+});
+export type DeleteAccountRequest = z.infer<typeof DeleteAccountRequestSchema>;

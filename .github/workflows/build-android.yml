@@ -1,0 +1,78 @@
+name: Build Android APK (self-hosted, no EAS cloud queue)
+
+# Runs the actual compile on GitHub's own runner instead of EAS's cloud
+# build queue — but still goes through `eas build`, just with `--local`, so
+# credentials (the existing Android upload keystore, already used for every
+# build so far) are still fetched from EAS's credential service the normal
+# way. This deliberately does NOT reimplement signing/prebuild by hand —
+# see PLAN.md's "GitHub Actions CI pipeline" section for why.
+#
+# One-time setup required before this can run (see PLAN.md):
+#   1. Create an Expo access token at
+#      https://expo.dev/accounts/<account>/settings/access-tokens
+#   2. Add it as a repository secret named EXPO_TOKEN
+# Until that secret exists, this workflow will fail cleanly at the build
+# step with an auth error — nothing destructive happens either way.
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'EAS build profile (apps/mobile/eas.json)'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - development
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses > /dev/null || true
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Install EAS CLI
+        run: npm install --global eas-cli
+
+      - name: Build Android APK locally via EAS
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ github.event.inputs.profile }} \
+            --local \
+            --non-interactive \
+            --output ./build.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fitness-coach-${{ github.event.inputs.profile }}
+          path: apps/mobile/build.apk
+          retention-days: 14

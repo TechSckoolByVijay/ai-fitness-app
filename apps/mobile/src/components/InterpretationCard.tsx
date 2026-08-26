@@ -1,6 +1,8 @@
 import type { InterpretedMeal } from '@fitness-app/shared';
 import { Pressable, View } from 'react-native';
+import { useCalorieSliderBounds } from '../hooks/useCalorieSliderBounds';
 import { Button } from './ui/Button';
+import { CalorieSlider } from './ui/CalorieSlider';
 import { Card } from './ui/Card';
 import { Chip } from './ui/Chip';
 import { Text } from './ui/Text';
@@ -10,6 +12,7 @@ interface InterpretationCardProps {
   isSubmitting: boolean;
   onConfirm: () => void;
   onAdjustQuantity: (index: number, delta: number) => void;
+  onAdjustCalories: (index: number, calories: number) => void;
   onRemoveItem: (index: number) => void;
   onQuickOption: (option: string) => void;
   onRetype: () => void;
@@ -26,51 +29,64 @@ export function InterpretationCard({
   isSubmitting,
   onConfirm,
   onAdjustQuantity,
+  onAdjustCalories,
   onRemoveItem,
   onQuickOption,
   onRetype,
 }: InterpretationCardProps) {
   const tierInfo = TIER_COPY[meal.tier];
+  const getBounds = useCalorieSliderBounds(meal.sourceText ?? meal.mealType);
 
   return (
     <Card className="gap-4">
       <View>
         <Text variant="caption">I understood:</Text>
-        <View className="mt-2 gap-2">
-          {meal.items.map((item, index) => (
-            <View key={`${item.name}-${index}`} className="flex-row items-center justify-between">
-              <Text variant="body" className="flex-1 capitalize">
-                {item.quantity} {item.unit} {item.name}
-              </Text>
-              <View className="flex-row items-center gap-1">
-                <Pressable
-                  accessibilityLabel={`Decrease ${item.name} quantity`}
-                  onPress={() => onAdjustQuantity(index, -1)}
-                  className="h-8 w-8 items-center justify-center rounded-full bg-muted-light dark:bg-muted-dark"
-                >
-                  <Text variant="body">−</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityLabel={`Increase ${item.name} quantity`}
-                  onPress={() => onAdjustQuantity(index, 1)}
-                  className="h-8 w-8 items-center justify-center rounded-full bg-muted-light dark:bg-muted-dark"
-                >
-                  <Text variant="body">+</Text>
-                </Pressable>
-                {meal.items.length > 1 ? (
-                  <Pressable
-                    accessibilityLabel={`Remove ${item.name}`}
-                    onPress={() => onRemoveItem(index)}
-                    className="h-8 w-8 items-center justify-center rounded-full"
-                  >
-                    <Text variant="body" className="text-red-500">
-                      ×
-                    </Text>
-                  </Pressable>
-                ) : null}
+        <View className="mt-2 gap-3">
+          {meal.items.map((item, index) => {
+            const bounds = getBounds(index, item.quantity, item.nutrition.calories);
+            return (
+              <View key={`${item.name}-${index}`} className="gap-2">
+                <View className="flex-row items-center justify-between">
+                  <Text variant="body" className="flex-1 capitalize">
+                    {item.quantity} {item.unit} {item.name}
+                  </Text>
+                  <View className="flex-row items-center gap-1">
+                    <Pressable
+                      accessibilityLabel={`Decrease ${item.name} quantity`}
+                      onPress={() => onAdjustQuantity(index, -1)}
+                      className="h-8 w-8 items-center justify-center rounded-full bg-muted-light dark:bg-muted-dark"
+                    >
+                      <Text variant="body">−</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel={`Increase ${item.name} quantity`}
+                      onPress={() => onAdjustQuantity(index, 1)}
+                      className="h-8 w-8 items-center justify-center rounded-full bg-muted-light dark:bg-muted-dark"
+                    >
+                      <Text variant="body">+</Text>
+                    </Pressable>
+                    {meal.items.length > 1 ? (
+                      <Pressable
+                        accessibilityLabel={`Remove ${item.name}`}
+                        onPress={() => onRemoveItem(index)}
+                        className="h-8 w-8 items-center justify-center rounded-full"
+                      >
+                        <Text variant="body" className="text-red-500">
+                          ×
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+                <CalorieSlider
+                  calories={item.nutrition.calories}
+                  minCalories={bounds.min}
+                  maxCalories={bounds.max}
+                  onChange={(calories) => onAdjustCalories(index, calories)}
+                />
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       </View>
 

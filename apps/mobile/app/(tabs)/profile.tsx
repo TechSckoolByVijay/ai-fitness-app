@@ -1,14 +1,26 @@
 import { router } from 'expo-router';
-import { ScrollView, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Platform, ScrollView, View } from 'react-native';
+import { ApiError } from '../../src/api/client';
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
 import { SkeletonBlock } from '../../src/components/ui/SkeletonBlock';
 import { Text } from '../../src/components/ui/Text';
+import { TextField } from '../../src/components/ui/TextField';
 import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
 import { RemindersCard } from '../../src/components/RemindersCard';
 import { ThemeToggle } from '../../src/components/ThemeToggle';
-import { useLogout } from '../../src/hooks/useAuth';
+import { useDeleteAccount, useLogout } from '../../src/hooks/useAuth';
 import { useMe } from '../../src/hooks/useMe';
+import { getAppInfo } from '../../src/utils/appInfo';
+
+function alertAsync(title: string, message: string): void {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+    return;
+  }
+  Alert.alert(title, message);
+}
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -33,6 +45,24 @@ function CardHeader({ title, onEdit }: { title: string; onEdit: () => void }) {
 export default function ProfileScreen() {
   const me = useMe();
   const logout = useLogout();
+  const deleteAccount = useDeleteAccount();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const appInfo = getAppInfo();
+
+  const handleDeleteAccount = () => {
+    deleteAccount.mutate(
+      { password: deletePassword },
+      {
+        onError: (error) => {
+          alertAsync(
+            'Could not delete account',
+            error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
+          );
+        },
+      },
+    );
+  };
 
   return (
     <ScrollView className="flex-1 bg-white dark:bg-surface-dark" contentContainerClassName="gap-5 p-5">
@@ -107,6 +137,56 @@ export default function ProfileScreen() {
           </Card>
 
           <Button label="Log out" variant="secondary" onPress={() => logout.mutate()} loading={logout.isPending} />
+
+          <Card className="gap-3 border border-red-100 dark:border-red-900/40">
+            <Text variant="subtitle" className="text-red-600 dark:text-red-400">
+              Danger zone
+            </Text>
+            {!showDeleteConfirm ? (
+              <Button label="Delete account" variant="ghost" onPress={() => setShowDeleteConfirm(true)} />
+            ) : (
+              <View className="gap-3">
+                <Text variant="caption">
+                  This permanently deletes your account and all your logged meals, activities, and history. This
+                  can&apos;t be undone.
+                </Text>
+                <TextField
+                  label="Confirm your password"
+                  value={deletePassword}
+                  onChangeText={setDeletePassword}
+                  secureTextEntry
+                  autoCapitalize="none"
+                />
+                <View className="flex-row gap-3">
+                  <Button
+                    label="Delete permanently"
+                    variant="ghost"
+                    onPress={handleDeleteAccount}
+                    loading={deleteAccount.isPending}
+                    disabled={!deletePassword}
+                    className="flex-1"
+                  />
+                  <Button
+                    label="Cancel"
+                    variant="secondary"
+                    onPress={() => {
+                      setShowDeleteConfirm(false);
+                      setDeletePassword('');
+                    }}
+                  />
+                </View>
+              </View>
+            )}
+          </Card>
+
+          <Card>
+            <Text variant="subtitle" className="mb-2">
+              About
+            </Text>
+            <Row label="App version" value={appInfo.version} />
+            <Row label="Update" value={appInfo.updateSource} />
+            <Row label="Channel" value={appInfo.channel} />
+          </Card>
         </>
       )}
     </ScrollView>

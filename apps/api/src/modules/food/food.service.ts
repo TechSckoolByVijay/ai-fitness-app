@@ -16,7 +16,11 @@ import {
   shouldAutoLog,
 } from '../confidence';
 
-const DEFAULT_AUTO_LOG_SETTING = true;
+// User-facing requirement: never save a logged meal without an explicit
+// Confirm tap, even at high confidence — the interpretation (and any
+// calorie-slider correction) must always be reviewable before it's
+// persisted. No per-user override exists for this yet.
+const DEFAULT_AUTO_LOG_SETTING = false;
 const GENERIC_FOOD_CONFIDENCE_CEILING = HIGH_CONFIDENCE_THRESHOLD - 0.01;
 const GENERIC_FOOD_LOW_CONFIDENCE_FLOOR = MEDIUM_CONFIDENCE_THRESHOLD - 0.01;
 

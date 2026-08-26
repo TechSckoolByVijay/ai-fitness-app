@@ -224,8 +224,8 @@ UUIDs, timestamps, indexes — so Phase 2-4 features can be built without
 destructive migrations. `User`, `Profile`, `Goal`, `DietPreference`,
 `Allergy`, `HealthCondition`, `FoodEntry`, `FoodItem`, `NutritionRecord`,
 `DailySummary`, `ExerciseEntry`, `AiConversation`, `AiMessage`, `WaterEntry`,
-`SleepEntry`, `WeightEntry`, and `NotificationPreference` all have real
-service logic. The rest (`FrequentMeal`, `FavoriteFood`, `HealthIntegration`,
+`SleepEntry`, `WeightEntry`, `NotificationPreference`, `FavoriteFood`, and
+`FrequentMeal` all have real service logic. The rest (`HealthIntegration`,
 `Medication`, `HealthMetric`, etc.) still exist as schema-only scaffolding.
 
 ### Water, weight, and sleep logging (spec sections 17-19)
@@ -255,9 +255,35 @@ on the previous calendar day).
 
 Notification preferences (`modules/notifications/`) are a plain per-category
 enable + preferred-time CRUD, defaulting every category to enabled with no
-preferred time until the user customizes it (no row needs to exist yet). This
-is preferences only — see PRODUCT.md's deferred table for why actual
-notification delivery isn't built.
+preferred time until the user customizes it (no row needs to exist yet).
+Backend-side this is preferences-only; the mobile app is what turns a saved
+preference into an actual notification — see "Reminder delivery" under
+Mobile app below.
+
+### Favorite foods and frequent-meal suggestions (spec section 28)
+
+Two related but deliberately separate mechanisms, both rolling up to the
+same `POST /food/entries` persistence path:
+
+- **`FavoriteFood`** (`modules/favorites/`) is explicit: the user names and
+  saves a specific set of items from a past meal (`POST /favorites`), and
+  `POST /favorites/:id/log` re-logs those exact items as a real `FoodEntry`
+  right now — skipping AI interpretation entirely, since the items are
+  already known-good. This is the only way a `FoodEntry` gets created
+  without going through `interpretFoodEvent`.
+- **`FrequentMeal`** (`modules/food/frequent-meal-tracking.ts`) is passive
+  and automatic: every successful `createFoodEntry` call — regardless of
+  whether it came from AI interpretation or from re-logging a favorite —
+  upserts a `FrequentMeal` row keyed by `computeMealSignature()` (mealType +
+  the sorted, lowercased set of item names, ignoring quantity so casual
+  voice logging still counts as a repeat). `GET /frequent-meals` only
+  returns combinations logged at least twice. Nothing here creates a
+  `FoodEntry` — the client's only action on a frequent meal is saving it as
+  a `FavoriteFood`, so there's exactly one quick-log mechanism, not two.
+
+Coach's "frequently eaten foods" signal (`coach-context.service.ts`) is
+intentionally *not* backed by either of these tables — it's still computed
+ad hoc from raw `FoodEntry` history, a separate, lower-stakes heuristic.
 
 ## Mobile app
 
@@ -275,7 +301,12 @@ app/
 ├── log-meal.tsx           modal — the voice/text logging flow (food AND exercise)
 ├── log-weight.tsx         modal — single weight input
 ├── log-sleep.tsx          modal — wake time + hours slept
-└── meal/[id].tsx          meal detail — edit/delete/duplicate
+├── edit-body-info.tsx     modal — pre-filled from /me, PATCH /me/profile
+├── edit-goals.tsx         modal — pre-filled from /me, PATCH /me/goals
+├── edit-diet.tsx          modal — pre-filled from /me, PATCH /me/diet
+├── edit-allergies.tsx     modal — pre-filled from /me, PATCH /me/allergies
+├── edit-health-conditions.tsx  modal — pre-filled from /me, PATCH /me/health-conditions
+└── meal/[id].tsx          meal detail — edit/delete/duplicate/save as favorite
 ```
 
 `log-meal.tsx` interprets an utterance via `POST /events/interpret` and
@@ -299,9 +330,29 @@ text/quick-pick chips, and derives `sleptAt`/`wokeAt` on the client, but the
 server still recomputes `durationMin` itself rather than trusting a
 client-sent value. Water logging lives on Home instead of Progress
 (`WaterCard`, quick-add buttons for common amounts) since it's a same-day,
-repeat-many-times-a-day action rather than a trend to review. Reminder
-preferences live on the Profile screen (`RemindersCard`) using React
-Native's built-in `Switch` — no new native dependency needed.
+repeat-many-times-a-day action rather than a trend to review.
+
+**Editable onboarding answers**: the `edit-*.tsx` modals are deliberately
+*not* the onboarding wizard screens reused in place — those are sequential
+("step 4 of 6", auto-advance to the next step) and start blank rather than
+pre-filled, wrong shape for a standalone edit. Each `edit-*` screen hydrates
+its local form state from `useMe()` once on mount, then does a single
+`PATCH` and navigates back — no forced march through the rest of onboarding.
+The backend routes need no changes to support this: `PATCH
+/me/profile|goals|diet|allergies|health-conditions` were always
+general-purpose, the onboarding wizard was just their first caller. Editing
+body info or the goal also triggers `recalculateProfileTargets()` (the same
+helper weight-logging uses), so calorie/protein/water targets never go
+stale relative to what the profile actually says.
+
+**Reminder delivery**: `src/lib/notifications.ts`'s `syncScheduledReminders()`
+(called from `RemindersCard` whenever preferences load or change) reconciles
+`expo-notifications`' OS-scheduled local notifications against saved
+`NotificationPreference` rows — cancels a category's existing scheduled
+notification by a stable identifier before conditionally re-scheduling it
+with a `DAILY` trigger (`{ hour, minute }`), so toggling a reminder or
+changing its time never leaves a stale/duplicate notification. Genuinely
+local — no push server, no Firebase/APNs.
 
 State is split by concern:
 - **Auth identity** (`src/state/authStore.ts`, Zustand) — is the user logged
