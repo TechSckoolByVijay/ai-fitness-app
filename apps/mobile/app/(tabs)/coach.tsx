@@ -134,6 +134,9 @@ export default function CoachScreen() {
           className="px-4"
         />
       </View>
+      <Text variant="caption" className="px-5 pb-3 text-center text-[11px] opacity-70">
+        For general wellness guidance only — not medical advice. Talk to a healthcare provider about anything specific to your health.
+      </Text>
     </KeyboardAvoidingView>
   );
 }

@@ -12,6 +12,7 @@ const BASE_CONTEXT: CoachContextInput = {
   dietType: 'vegetarian',
   dietOtherText: null,
   allergies: [],
+  healthConditions: [],
   frequentFoods: ['chapati', 'dal'],
   todaysMealsSummary: ['lunch: chapati, dal'],
 };

@@ -135,6 +135,8 @@ For a physical activity (walking, running, cycling, swimming, yoga, badminton, t
 
 CRITICAL: you must NEVER compute or state calories burned for an exercise event — that number is always calculated separately by a deterministic formula from the activity, duration, and the user's weight, never by you. Only extract the facts (activity, duration, steps, distance, intensity).`;
 
+const PHOTO_INSTRUCTION = `The user has sent a PHOTO instead of (or alongside) a text description. Identify every distinct food item visible in the photo as its own item, following the same naming/quantity/confidence rules as the text case above. Estimate each quantity/weight from typical portion sizes and visual scale relative to the plate/container — never leave quantity or unit blank. Confidence should reflect how clearly each item is visually identifiable, using the same 0-1 calibration described above (a clearly-recognizable specific dish is high; something partially obscured, a generic-looking gravy/curry with no visible identifying ingredient, or a food you're genuinely unsure of is medium or low — never guess a specific name you can't actually see support for in the image). If the photo is not of food at all (e.g. blurry, unrelated), return a single low-confidence item named "unclear photo" rather than fabricating a dish.`;
+
 function buildCoachSystemPrompt(context: CoachContextInput): string {
   const budgetLine =
     context.remainingCalories !== null
@@ -149,6 +151,10 @@ function buildCoachSystemPrompt(context: CoachContextInput): string {
     ? `CRITICAL — the user has these allergies/restrictions, you must NEVER suggest a dish containing them: ${context.allergies.join(', ')}.`
     : 'No known allergies.';
 
+  const healthConditionLine = context.healthConditions.length
+    ? `The user has noted these health conditions: ${context.healthConditions.join(', ')}. Keep this in mind as context for your tone and general caution — e.g. lean toward lower-sodium framing if blood pressure is noted — but do not diagnose, treat, or reference it clinically, and do not assume anything about severity or current treatment.`
+    : 'No health conditions noted.';
+
   const frequentLine = context.frequentFoods.length
     ? `Foods they've eaten often recently (use as a signal for taste, not a hard constraint): ${context.frequentFoods.join(', ')}.`
     : "No meal history yet to infer taste from.";
@@ -162,6 +168,7 @@ function buildCoachSystemPrompt(context: CoachContextInput): string {
 ${budgetLine}
 ${dietLine}
 ${allergyLine}
+${healthConditionLine}
 ${frequentLine}
 ${todaysMealsLine}
 
@@ -169,7 +176,13 @@ Guidelines:
 - Never suggest a dish that violates their diet type or contains a listed allergen — this is a hard safety constraint, not a preference.
 - When suggesting a dish, propose ONE specific dish by name (not a list), keep it realistic for their remaining calorie budget, and briefly say why it fits. Keep replies to a few sentences unless asked for a recipe.
 - If they ask for a recipe or steps for a dish you (or they) mentioned, give a clear numbered list of steps.
-- Keep a warm, encouraging tone. Never present calorie/macro estimates as exact — they're estimates.`;
+- Keep a warm, encouraging tone. Never present calorie/macro estimates as exact — they're estimates.
+
+CRITICAL — stay in wellness/education territory, never medical territory:
+- You give general fitness, nutrition, and wellness guidance. You are NOT a doctor, dietitian, or trainer, and must never act like one.
+- NEVER diagnose a symptom or condition ("that sounds like it could be X"), never prescribe or dose a supplement/medication, and never design or recommend a specific exercise intensity, duration, or regimen for someone's noted health condition. If asked something in that territory, give one sentence of general, low-risk lifestyle framing at most and clearly suggest they talk to a doctor or qualified professional for anything specific to their situation.
+- Prefer framing like "consider increasing protein today to help with recovery" or "you're about 300 kcal under your goal" — factual, educational, about the food/activity itself — over anything that reads as interpreting their body or health status.
+- If a request is clearly outside wellness/nutrition scope (an injury, chest pain, medication questions, anything urgent-sounding), say so plainly and recommend contacting a healthcare provider rather than attempting an answer.`;
 }
 
 export class OpenAIProvider implements AIProvider {
@@ -184,11 +197,30 @@ export class OpenAIProvider implements AIProvider {
 
   async extractHealthEvents({
     text,
+    imageBase64,
     nowISO,
   }: {
-    text: string;
+    text?: string;
+    imageBase64?: string;
     nowISO: string;
   }): Promise<HealthExtractionResult> {
+    const userContent: Array<
+      { type: 'input_text'; text: string } | { type: 'input_image'; image_url: string; detail: 'low' | 'auto' }
+    > = [];
+
+    if (imageBase64) {
+      userContent.push({ type: 'input_text', text: `Current date/time (ISO): ${nowISO}\n\n${PHOTO_INSTRUCTION}` });
+      if (text) {
+        userContent.push({ type: 'input_text', text: `The user also said: "${text}"` });
+      }
+      // "auto" lets the model pick higher detail when the image genuinely
+      // needs it (small items, crowded plate) — "low" is cheaper/faster but
+      // risks missing smaller items on a full thali-style plate.
+      userContent.push({ type: 'input_image', image_url: imageBase64, detail: 'auto' });
+    } else {
+      userContent.push({ type: 'input_text', text: `Current date/time (ISO): ${nowISO}\n\nWhat the user said: "${text}"` });
+    }
+
     const response = await this.client.responses.parse({
       model: this.model,
       // Low temperature: this is closer to a classification/extraction task
@@ -197,7 +229,7 @@ export class OpenAIProvider implements AIProvider {
       temperature: 0.1,
       input: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `Current date/time (ISO): ${nowISO}\n\nWhat the user said: "${text}"` },
+        { role: 'user', content: userContent },
       ],
       text: { format: zodTextFormat(OpenAIExtractionSchema, 'health_extraction') },
     });

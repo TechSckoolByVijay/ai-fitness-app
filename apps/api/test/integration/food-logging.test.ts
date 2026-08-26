@@ -122,7 +122,27 @@ describe('food logging round trip', () => {
     expect(meal.quickOptions.length).toBeGreaterThan(0);
   });
 
-  it('rejects an interpret request with neither text, audio, nor mockTranscriptId', async () => {
+  it('interprets a meal from a photo (mock mode returns an honest placeholder)', async () => {
+    const token = await registerAndGetToken(app, 'photo');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/events/interpret',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { imageBase64: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/', nowISO: '2026-08-25T09:00:00.000Z' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const { event } = response.json();
+    expect(event.type).toBe('food');
+    const { meal } = event;
+    expect(meal.sourceText).toBe('[Photo]');
+    expect(meal.items).toHaveLength(1);
+    expect(meal.items[0].name).toBe('meal from photo');
+    expect(meal.tier).toBe('medium');
+  });
+
+  it('rejects an interpret request with neither text, audio, image, nor mockTranscriptId', async () => {
     const token = await registerAndGetToken(app, 'novalid');
 
     const response = await app.inject({

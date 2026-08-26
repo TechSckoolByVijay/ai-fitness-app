@@ -122,17 +122,46 @@ function buildItem(phrase: string): FoodItemExtraction {
 export class MockAIProvider implements AIProvider {
   async extractHealthEvents({
     text,
+    imageBase64,
     nowISO,
   }: {
-    text: string;
+    text?: string;
+    imageBase64?: string;
     nowISO: string;
   }): Promise<HealthExtractionResult> {
-    const { iso: timestamp } = resolveTimestamp(text, nowISO);
+    // The mock can't actually see a photo — return an honest, clearly-generic
+    // placeholder (medium confidence, not high) so mock mode still exercises
+    // the full confirm/edit pipeline without pretending to have recognized
+    // anything specific.
+    if (!text && imageBase64) {
+      const { iso: timestamp, hour } = resolveTimestamp('', nowISO);
+      return {
+        events: [
+          {
+            type: 'food',
+            timestamp,
+            mealType: inferMealType('', hour),
+            items: [
+              {
+                name: 'meal from photo',
+                quantity: 1,
+                unit: 'serving',
+                confidence: 0.5,
+                descriptors: ['mock mode — set MOCK_AI=false for real photo recognition'],
+              },
+            ],
+          },
+        ],
+      };
+    }
+
+    const resolvedText = text ?? '';
+    const { iso: timestamp } = resolveTimestamp(resolvedText, nowISO);
 
     // An utterance is either about an activity or about food — checked first
     // since activity keywords ("walked", "played badminton") don't overlap
     // with the food vocabulary, so this never misclassifies a food mention.
-    const exercise = tryParseExercise(text);
+    const exercise = tryParseExercise(resolvedText);
     if (exercise) {
       return {
         events: [
@@ -150,11 +179,11 @@ export class MockAIProvider implements AIProvider {
       };
     }
 
-    const { hour } = resolveTimestamp(text, nowISO);
-    const mealType = inferMealType(text, hour);
-    const phrases = splitIntoItemPhrases(text).flatMap(splitOnWithIfFood);
+    const { hour } = resolveTimestamp(resolvedText, nowISO);
+    const mealType = inferMealType(resolvedText, hour);
+    const phrases = splitIntoItemPhrases(resolvedText).flatMap(splitOnWithIfFood);
 
-    const items = phrases.length > 0 ? phrases.map(buildItem) : [buildFallbackItem(text)];
+    const items = phrases.length > 0 ? phrases.map(buildItem) : [buildFallbackItem(resolvedText)];
 
     return {
       events: [{ type: 'food', timestamp, mealType, items }],

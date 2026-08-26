@@ -33,7 +33,11 @@ declare module 'fastify' {
 }
 
 export async function buildApp(env: Env) {
-  const app = Fastify({ logger: getLoggerOptions(env) });
+  // Default 1MB is too small for a base64-encoded meal/label photo
+  // (JPEG + ~33% base64 overhead can land well past that even at modest
+  // compression) — 8MB covers a real photo with headroom while still
+  // bounding request size against abuse.
+  const app = Fastify({ logger: getLoggerOptions(env), bodyLimit: 8 * 1024 * 1024 });
 
   app.decorate('env', env);
   app.setValidatorCompiler(validatorCompiler);

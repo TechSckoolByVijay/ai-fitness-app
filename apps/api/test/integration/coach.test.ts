@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { buildCoachContext } from '../../src/modules/coach/coach-context.service';
 import { createTestApp, uniqueEmail } from './helpers';
 
 async function registerAndGetToken(app: FastifyInstance, prefix: string): Promise<string> {
@@ -20,6 +21,33 @@ describe('coach chat', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('includes the user\'s reported health conditions in the Coach context (not just diet/allergies)', async () => {
+    const registerRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      payload: { email: uniqueEmail('coach-health'), password: 'password123', name: 'Coach Tester' },
+    });
+    const { accessToken } = registerRes.json();
+
+    await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/health-conditions',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { conditions: [{ type: 'diabetes' }, { type: 'prefer_not_to_answer' }] },
+    });
+
+    const meRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    const userId = meRes.json().id;
+
+    const context = await buildCoachContext(app.prisma, userId);
+    // "prefer_not_to_answer" isn't an actual condition to reason about — excluded.
+    expect(context.healthConditions).toEqual(['diabetes']);
   });
 
   it('returns no conversation before the user has sent a first message', async () => {

@@ -36,11 +36,13 @@ export const FoodInterpretRequestSchema = z
   .object({
     text: z.string().min(1).optional(),
     audioBase64: z.string().optional(),
+    /** A photo of a meal or a nutrition label, as a base64-encoded data URL (e.g. "data:image/jpeg;base64,..."). */
+    imageBase64: z.string().optional(),
     mockTranscriptId: z.string().optional(),
     nowISO: z.string().min(1),
   })
-  .refine((d) => Boolean(d.text || d.audioBase64 || d.mockTranscriptId), {
-    message: 'One of text, audioBase64, or mockTranscriptId is required',
+  .refine((d) => Boolean(d.text || d.audioBase64 || d.imageBase64 || d.mockTranscriptId), {
+    message: 'One of text, audioBase64, imageBase64, or mockTranscriptId is required',
   });
 export type FoodInterpretRequest = z.infer<typeof FoodInterpretRequestSchema>;
 

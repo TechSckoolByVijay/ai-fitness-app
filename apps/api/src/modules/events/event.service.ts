@@ -25,12 +25,13 @@ export async function interpretHealthEvent(
   weightKg: number,
   input: EventInterpretRequest,
 ): Promise<InterpretedHealthEvent> {
-  const sourceText =
-    input.text ??
-    (await deps.speechProvider.transcribe({
-      audioBase64: input.audioBase64,
-      mockTranscriptId: input.mockTranscriptId,
-    })).text;
+  const sourceText = input.imageBase64
+    ? '[Photo]'
+    : input.text ??
+      (await deps.speechProvider.transcribe({
+        audioBase64: input.audioBase64,
+        mockTranscriptId: input.mockTranscriptId,
+      })).text;
 
   // A real provider call can fail (timeout, rate limit, network error) —
   // never let that surface as an opaque 500; the user should get a normal
@@ -38,7 +39,8 @@ export async function interpretHealthEvent(
   let rawExtraction: unknown;
   try {
     rawExtraction = await deps.aiProvider.extractHealthEvents({
-      text: sourceText,
+      text: input.imageBase64 ? undefined : sourceText,
+      imageBase64: input.imageBase64,
       nowISO: input.nowISO,
     });
   } catch {

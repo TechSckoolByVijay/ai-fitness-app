@@ -57,21 +57,23 @@ export async function buildCoachContext(prisma: PrismaClient, userId: string): P
   const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
   const lookbackStart = new Date(today.getTime() - FREQUENT_FOODS_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
 
-  const [profile, summary, dietPreference, allergies, todaysEntries, recentEntries] = await Promise.all([
-    prisma.profile.findUnique({ where: { userId } }),
-    prisma.dailySummary.findUnique({ where: { userId_date: { userId, date: today } } }),
-    prisma.dietPreference.findUnique({ where: { userId } }),
-    prisma.allergy.findMany({ where: { userId } }),
-    prisma.foodEntry.findMany({
-      where: { userId, loggedAt: { gte: today, lt: tomorrow } },
-      include: { items: true },
-      orderBy: { loggedAt: 'asc' },
-    }),
-    prisma.foodEntry.findMany({
-      where: { userId, loggedAt: { gte: lookbackStart, lt: tomorrow } },
-      include: { items: true },
-    }),
-  ]);
+  const [profile, summary, dietPreference, allergies, healthConditions, todaysEntries, recentEntries] =
+    await Promise.all([
+      prisma.profile.findUnique({ where: { userId } }),
+      prisma.dailySummary.findUnique({ where: { userId_date: { userId, date: today } } }),
+      prisma.dietPreference.findUnique({ where: { userId } }),
+      prisma.allergy.findMany({ where: { userId } }),
+      prisma.healthCondition.findMany({ where: { userId } }),
+      prisma.foodEntry.findMany({
+        where: { userId, loggedAt: { gte: today, lt: tomorrow } },
+        include: { items: true },
+        orderBy: { loggedAt: 'asc' },
+      }),
+      prisma.foodEntry.findMany({
+        where: { userId, loggedAt: { gte: lookbackStart, lt: tomorrow } },
+        include: { items: true },
+      }),
+    ]);
 
   const calorieTarget = profile?.calorieTarget ?? null;
   const caloriesConsumedToday = summary ? Number(summary.caloriesConsumed) : 0;
@@ -88,6 +90,9 @@ export async function buildCoachContext(prisma: PrismaClient, userId: string): P
     dietType: dietPreference?.dietType ?? null,
     dietOtherText: dietPreference?.otherText ?? null,
     allergies: allergies.map((allergy) => (allergy.type === 'other' ? (allergy.otherText ?? 'other') : allergy.type)),
+    healthConditions: healthConditions
+      .filter((c) => c.type !== 'prefer_not_to_answer')
+      .map((c) => (c.type === 'other' ? (c.otherText ?? 'other') : c.type)),
     frequentFoods: computeFrequentFoods(recentEntries),
     todaysMealsSummary: summarizeTodaysMeals(todaysEntries),
   };

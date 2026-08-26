@@ -16,6 +16,8 @@ export interface CoachContextInput {
   dietType: string | null;
   dietOtherText: string | null;
   allergies: string[];
+  /** Onboarding-reported conditions (e.g. "diabetes", "hypertension") — used to keep suggestions from ignoring a real medical context, never to diagnose or prescribe. */
+  healthConditions: string[];
   frequentFoods: string[];
   todaysMealsSummary: string[];
 }
@@ -26,6 +28,11 @@ export interface CoachChatMessage {
 }
 
 export interface AIProvider {
-  extractHealthEvents(input: { text: string; nowISO: string }): Promise<HealthExtractionResult>;
+  /** Exactly one of `text`/`imageBase64` is present — enforced by the shared request schema before this is called. */
+  extractHealthEvents(input: {
+    text?: string;
+    imageBase64?: string;
+    nowISO: string;
+  }): Promise<HealthExtractionResult>;
   coachChat(input: { messages: CoachChatMessage[]; context: CoachContextInput }): Promise<string>;
 }
