@@ -139,7 +139,11 @@ export default function MealDetailScreen() {
         {entry.mealType}
       </Text>
       <Text variant="caption">{formatTime(new Date(entry.loggedAt))}</Text>
-      {entry.sourceText ? (
+      {entry.sourceText === '[Photo]' ? (
+        <Text variant="caption" className="italic">
+          📷 Logged from a photo
+        </Text>
+      ) : entry.sourceText ? (
         <Text variant="caption" className="italic">
           &quot;{entry.sourceText}&quot;
         </Text>

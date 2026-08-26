@@ -13,6 +13,7 @@ import { useInterpretEvent } from '../src/hooks/useEvents';
 import { useCreateExerciseEntry } from '../src/hooks/useExerciseEntries';
 import { useRequireAuth } from '../src/hooks/useRequireAuth';
 import { useVoiceRecognition } from '../src/hooks/useVoiceRecognition';
+import { usePendingPhotoStore } from '../src/state/pendingPhoto';
 import { useVoiceMachine } from '../src/state/voiceMachine';
 import { goBackOrHome } from '../src/utils/navigation';
 import { scaleNutritionToCalories } from '../src/utils/nutritionOverride';
@@ -32,6 +33,7 @@ export default function LogMealScreen() {
   const isAuthenticated = useRequireAuth();
   const [state, dispatch] = useVoiceMachine();
   const [text, setText] = useState('');
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const interpretEvent = useInterpretEvent();
   const createEntry = useCreateFoodEntry();
   const createActivity = useCreateExerciseEntry();
@@ -56,6 +58,25 @@ export default function LogMealScreen() {
         type: 'FAILED',
         message: error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
         retryText: trimmed,
+      });
+    }
+  };
+
+  const runInterpretPhoto = async (imageBase64: string) => {
+    dispatch({ type: 'SUBMIT' });
+    try {
+      const result = await interpretEvent.mutateAsync({ imageBase64, nowISO: new Date().toISOString() });
+      dispatch({ type: 'INTERPRETED', event: result.event, sourceText: '[Photo]' });
+
+      if (result.event.type === 'food' && result.event.meal.autoLog) {
+        await persistMeal(result.event.meal);
+      } else if (result.event.type === 'exercise' && result.event.activity.autoLog) {
+        await persistActivity(result.event.activity);
+      }
+    } catch (error) {
+      dispatch({
+        type: 'FAILED',
+        message: error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
       });
     }
   };
@@ -160,6 +181,15 @@ export default function LogMealScreen() {
   };
 
   const retype = () => {
+    // In photo mode, "retype" (from the interpretation card's Retype button)
+    // has nothing to fall back to — resetting to 'idle' would show the
+    // voice-recording UI, which would be a confusing bait-and-switch after
+    // starting from a photo. Send them back to Home to tap the camera
+    // button again instead.
+    if (photoBase64) {
+      goBackOrHome();
+      return;
+    }
     voice.stop();
     dispatch({ type: 'RESET' });
   };
@@ -178,10 +208,23 @@ export default function LogMealScreen() {
   // gesture — requiring a second tap here once the screen loads was
   // reported as bad UX. Auto-start listening immediately instead; typing is
   // still available on the recording screen below for anyone who prefers it.
+  // A photo picked from the Home screen's camera button takes priority over
+  // auto-starting voice — it's handed off via a store (too large for a
+  // navigation param), consumed once here, and kept in local state after so
+  // "Try again" on failure can retry without re-picking.
   const hasAutoStartedRef = useRef(false);
+  const consumePendingPhoto = usePendingPhotoStore((s) => s.imageBase64);
+  const clearPendingPhoto = usePendingPhotoStore((s) => s.clearPendingPhoto);
   useEffect(() => {
-    if (isAuthenticated && !hasAutoStartedRef.current) {
-      hasAutoStartedRef.current = true;
+    if (!isAuthenticated || hasAutoStartedRef.current) return;
+    hasAutoStartedRef.current = true;
+
+    if (consumePendingPhoto) {
+      const image = consumePendingPhoto;
+      clearPendingPhoto();
+      setPhotoBase64(image);
+      void runInterpretPhoto(image);
+    } else {
       void startRecording();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -279,8 +322,8 @@ export default function LogMealScreen() {
 
         {state.status === 'processing' ? (
           <View className="items-center gap-3 py-10">
-            <Text className="text-3xl">🎙️</Text>
-            <Text variant="body">Understanding...</Text>
+            <Text className="text-3xl">{photoBase64 ? '📷' : '🎙️'}</Text>
+            <Text variant="body">{photoBase64 ? 'Looking at your photo...' : 'Understanding...'}</Text>
           </View>
         ) : null}
 
@@ -311,8 +354,17 @@ export default function LogMealScreen() {
             <Text variant="body" className="text-red-500">
               {state.message}
             </Text>
-            <Button label="Try again" onPress={() => runInterpret(state.retryText ?? text)} />
-            <Button label="Edit text" variant="ghost" onPress={retype} />
+            {photoBase64 ? (
+              <>
+                <Button label="Try again" onPress={() => runInterpretPhoto(photoBase64)} />
+                <Button label="Cancel" variant="ghost" onPress={goBackOrHome} />
+              </>
+            ) : (
+              <>
+                <Button label="Try again" onPress={() => runInterpret(state.retryText ?? text)} />
+                <Button label="Edit text" variant="ghost" onPress={retype} />
+              </>
+            )}
           </View>
         ) : null}
       </ScrollView>

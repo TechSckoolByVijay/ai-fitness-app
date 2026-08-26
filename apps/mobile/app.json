@@ -3,7 +3,7 @@
     "name": "Fitness Coach",
     "slug": "fitness-coach",
     "scheme": "fitnesscoach",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -37,6 +37,13 @@
       "expo-status-bar",
       "expo-secure-store",
       "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Fitness Coach to access your photos so you can log a meal from a picture.",
+          "cameraPermission": "Allow Fitness Coach to use the camera so you can log a meal by taking a photo."
+        }
+      ],
       [
         "expo-speech-recognition",
         {
