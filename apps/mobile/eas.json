@@ -21,7 +21,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://lapped-earpiece-cortex.ngrok-free.dev/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://fitness-coach-api.livelysand-91f7619e.centralus.azurecontainerapps.io/api/v1"
       },
       "channel": "preview"
     },

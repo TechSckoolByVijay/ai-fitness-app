@@ -389,14 +389,18 @@ preparing for a public deployment, where credential-stuffing/brute-force
 becomes a real (not hypothetical) concern. All 135 backend tests still pass
 (no test file's cumulative register/login calls exceed the limit).
 
-## Azure deployment — prepared, not yet executed
+## Azure deployment — LIVE
 
-User wants to deploy to production now, in the existing `fitness-app`
-resource group (subscription `d52d8c18-504a-45e8-8997-9c004316124c`,
-"Visual Studio Enterprise Subscription"). **Blocked on `az login`** — the
-CLI's cached token expired (90 days inactive); needs an interactive
-re-login only the user can do (`az login --tenant
-ab834a0e-d914-4111-9d90-210d9c0c5212`).
+Deployed to production in the `fitness-app` resource group (subscription
+`d52d8c18-504a-45e8-8997-9c004316124c`, "Visual Studio Enterprise
+Subscription", region **centralus** — see below for why not eastus).
+
+**Live URL**: `https://fitness-coach-api.livelysand-91f7619e.centralus.azurecontainerapps.io`
+(`/health` and `/docs` both confirmed 200; a real user register-through-the-
+public-URL round trip confirmed the full path — API → production Postgres
+— works end to end). Database migrations applied via `az containerapp exec`
+(couldn't reach Postgres directly from a local machine — deliberate, the
+firewall only allows Azure-internal traffic).
 
 **Decision: Azure Container Apps (Consumption plan), not App Service.** For
 ~5-6 users, Container Apps' scale-to-zero + monthly free grant (180k
@@ -434,25 +438,67 @@ first production deploy):
    etc.), leaky image deleted (`docker rmi -f` + `docker system prune`),
    rebuilt clean and re-verified the file isn't in the image.
 
-**Validated locally, end-to-end, before anything touches Azure**: built the
+**Validated locally, end-to-end, before anything touched Azure**: built the
 image (`docker build -f apps/api/Dockerfile .`), ran it against the local
 Postgres via `host.docker.internal`, registered a real user through it
 (confirms Prisma/DB connectivity from inside the container), and hit
-`/docs`. All passed.
+`/docs`. All passed — this is what made it possible to diagnose the later
+Azure-side issues with confidence that the image/app itself was never the
+problem.
 
-**Ready to deploy, waiting on `az login`**:
-- `infra/main.bicep` — Postgres Flexible Server (B1ms, firewalled to
-  Azure-internal traffic only, not the open internet) + Container Apps
-  environment + the API container app (secrets for DB URL/JWT
-  secrets/AI keys passed as secure params, never hardcoded). Not yet
-  dry-run against real Azure (`az deployment group what-if` should be the
-  first real command once logged in — zero-risk preview before creating
-  anything).
-- `.github/workflows/deploy-api.yml` — builds the Docker image, pushes to
-  GHCR (free, uses the built-in `GITHUB_TOKEN`, no extra registry cost),
-  then `az containerapp update`s the running app to the new image. Needs
-  one GitHub secret once the Container App exists: `AZURE_CREDENTIALS` (a
-  service principal — can create this together once `az login` works).
+**More real issues hit during the actual deployment** (beyond the 4 already
+listed above, all found and fixed live):
+5. **PostgreSQL Flexible Server provisioning is restricted for this
+   subscription in `eastus`** (and `eastus2`/`westus2`/`southcentralus`) —
+   `"Provisioning is restricted in this region"`. Not a template bug;
+   `centralus`/`westus3`/`northeurope` all work. Had already created the
+   Container Apps environment + Log Analytics workspace in eastus before
+   hitting this — deleted both and redeployed everything in `centralus` for
+   consistency (lower latency between the app and its own database).
+6. **Container Registry**: originally planned GHCR (free), but the `gh` CLI
+   token here only has `gist`/`read:org`/`repo`/`workflow` scopes — no
+   package-registry access, and nothing was pushed to GitHub yet anyway.
+   Switched to **Azure Container Registry** (`fitnesscoachacr`, Basic tier,
+   ~$5/mo) instead — lets the Container App pull via system-assigned
+   managed identity with **no stored registry password at all**, which is
+   also more secure than the GHCR-password approach originally planned.
+7. **`az acr build` hung indefinitely** — uploaded nothing, no build run
+   ever registered server-side, even after 18+ minutes on a ~34MB context.
+   Killed it; used the path already proven locally instead — `docker build`
+   (fast, already validated) + `az acr login` (uses the same working `az`
+   session) + `docker push`. Confirmed via `az acr repository list`.
+8. **Bicep chicken-and-egg deadlock**: the Container App's own provisioning
+   blocks on successfully pulling its image, but the `AcrPull` role
+   assignment for its managed identity — which is *required* for that pull
+   — only gets created by Bicep *after* the Container App resource reaches
+   a terminal state. Single-template deployment can't resolve this on its
+   own. Fixed live by granting the role directly via the ARM REST API
+   (`az rest --method put .../roleAssignments/<guid>`) using the identity's
+   `principalId`, read straight off the half-provisioned resource — this
+   also dodged a separate `az role assignment create`/`list --scope` CLI
+   bug (`MissingSubscription` error) that affects this environment
+   specifically (`az role definition list` and other `az` commands work
+   fine; only role-*assignment* commands hit it). **`infra/main.bicep`
+   still has the original single-template role assignment** — fine for
+   reference, but a from-scratch redeploy will hit this same deadlock
+   again; the real fix would be splitting the role assignment into a
+   second deployment step, not yet done.
+9. **A stuck server-side ARM operation** (not a client-side hang — killing
+   the local `az` process didn't clear it) left the Container App's
+   `provisioningState` on `InProgress` for ~40+ minutes, during which the
+   public URL 404'd ("stopped or does not exist") even though the
+   revision underneath was already `active`/`Healthy`/`Provisioned` —
+   ingress apparently won't route until the resource-level state goes
+   terminal. No CLI trick forced it faster; waiting it out and retriggering
+   with `az containerapp update` once it finally flipped to `Failed` (a
+   terminal state, unlike the never-ending `InProgress`) is what actually
+   unblocked it.
+
+**CI/CD**: `.github/workflows/deploy-api.yml` now builds via `az acr build`
+(remote, in Azure — untested end-to-end given issue #7 above, worth
+watching the first real run) and `az containerapp update`s to the new
+image. Needs one GitHub secret once created: `AZURE_CREDENTIALS` (a service
+principal — not yet created).
 
 **Public exposure / access control** (user's question, answered): yes, the
 Container App gets a public HTTPS URL by design — a phone anywhere needs to
@@ -467,10 +513,37 @@ limiting, now fixed (above).
 
 ## Known follow-ups (not yet done)
 
-- Finish the Azure deployment once the user re-runs `az login` — validate
-  the Bicep with `what-if`, provision, create the `AZURE_CREDENTIALS`
-  service principal for GitHub Actions, deploy, then point
-  `EXPO_PUBLIC_API_URL` at the real URL instead of the ngrok tunnel.
+- `.github/workflows/deploy-api.yml` still hasn't run end to end — the
+  `AZURE_CREDENTIALS` secret exists now (service principal
+  `fitness-coach-github-actions`, Contributor scoped to just the
+  `fitness-app` resource group), but none of this session's changes are
+  pushed to GitHub yet (many uncommitted files) — that push is the user's
+  call, per how commits have worked all session.
+- `infra/main.bicep`'s role assignment will hit the same chicken-and-egg
+  deadlock (issue #8 above) on any from-scratch redeploy — worth splitting
+  into a second deployment step before relying on the template again.
+- Postgres firewall currently allows all Azure-internal traffic
+  ("AllowAzureServices"), not scoped to just this Container App — fine at
+  this scale, worth tightening with VNet integration if it grows.
+- **Git Bash + `az` gotcha worth remembering**: any bare `/subscriptions/...`
+  argument (`--scope`, `--scopes`, `--ids`) gets silently mangled into a
+  literal Windows path by Git Bash's auto path-conversion, producing a
+  baffling `(MissingSubscription)` error that looks like an Azure-side
+  problem but isn't. Prefix the command with `MSYS_NO_PATHCONV=1`, or use a
+  full `https://management.azure.com/...` URL via `az rest` instead — this
+  wasted significant time before being root-caused.
+
+## Mobile app pointed at production
+
+`EXPO_PUBLIC_API_URL` updated to the live Azure URL in two places: EAS's
+hosted preview environment variable (what `eas update` actually reads —
+`eas.json`'s own `env` block only applies to `eas build`) and `eas.json`
+itself (so a future native rebuild also gets it right). Shipped via OTA
+update — no rebuild needed, pure config change. The installed app will
+pick it up after being fully closed and reopened twice (standard
+`expo-updates` behavior). The ngrok tunnel + local API server are no
+longer needed for the phone to work, though still useful for local dev
+against a non-production database.
 
 ## EAS Update (OTA) — set up
 
