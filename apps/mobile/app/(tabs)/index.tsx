@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 import { ActivityListItem } from '../../src/components/ActivityListItem';
+import { InsightCard } from '../../src/components/InsightCard';
 import { MealListItem } from '../../src/components/MealListItem';
 import { Card } from '../../src/components/ui/Card';
 import { EmptyState } from '../../src/components/ui/EmptyState';
@@ -11,6 +12,7 @@ import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
 import { VoiceButton } from '../../src/components/VoiceButton';
 import { WaterCard } from '../../src/components/WaterCard';
 import { useDashboard } from '../../src/hooks/useDashboard';
+import { useInsights } from '../../src/hooks/useInsights';
 import { useMe } from '../../src/hooks/useMe';
 
 function getGreeting(): string {
@@ -22,6 +24,7 @@ function getGreeting(): string {
 
 export default function HomeScreen() {
   const dashboard = useDashboard();
+  const insights = useInsights();
   const me = useMe();
   const firstName = me.data?.name?.split(' ')[0];
 
@@ -33,6 +36,14 @@ export default function HomeScreen() {
           {getGreeting()}
           {firstName ? `, ${firstName}` : ''} 👋
         </Text>
+
+        {insights.data && insights.data.cards.length > 0 ? (
+          <View className="gap-2">
+            {insights.data.cards.map((card) => (
+              <InsightCard key={card.id} card={card} />
+            ))}
+          </View>
+        ) : null}
 
         {dashboard.isLoading ? (
           <View className="gap-3">

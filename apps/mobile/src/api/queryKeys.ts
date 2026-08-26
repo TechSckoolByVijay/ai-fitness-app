@@ -11,4 +11,5 @@ export const queryKeys = {
   notificationPreferences: ['notification-preferences'] as const,
   favorites: ['favorites'] as const,
   frequentMeals: ['frequent-meals'] as const,
+  insightsToday: ['insights', 'today'] as const,
 };
