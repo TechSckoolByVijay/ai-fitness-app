@@ -46,7 +46,7 @@ export default function HealthStep() {
         }));
     await updateHealthConditions.mutateAsync({ conditions, skipped: preferNotToAnswer });
     await completeOnboarding.mutateAsync();
-    router.replace('/');
+    router.replace('/tour');
   };
 
   return (

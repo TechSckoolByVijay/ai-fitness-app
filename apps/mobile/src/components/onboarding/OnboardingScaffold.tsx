@@ -1,7 +1,7 @@
 import { ScrollView, View } from 'react-native';
 import { Text } from '../ui/Text';
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
 
 interface OnboardingScaffoldProps {
   step: number;
