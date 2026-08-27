@@ -14,6 +14,15 @@ Notifications.setNotificationHandler({
 const REMINDER_CONTENT: Partial<Record<NotificationPreferenceDto['category'], { title: string; body: string }>> = {
   water: { title: 'Stay hydrated 💧', body: 'Time for a glass of water — log it when you do!' },
   sleep: { title: 'Wind down 🌙', body: "It's almost your bedtime — get ready to log your sleep." },
+  // Fires at a fixed time regardless of whether anything was actually
+  // logged today — a true "you haven't logged yet" check needs the app to
+  // ask the server at fire time, which local notifications can't do (that
+  // needs push notifications + a server-side scheduler, not built yet).
+  // Kept the copy honest about that rather than implying it's smarter than it is.
+  goal_progress: {
+    title: 'How’s today going? 📝',
+    body: "Take a moment to log what you've had so far — even a quick voice note helps.",
+  },
 };
 
 /** Only these categories have a reminder actually wired up to fire — the rest of NotificationCategory exists for future phases (meal_suggestion, goal_progress, etc.). */
@@ -70,7 +79,7 @@ export async function syncScheduledReminders(preferences: NotificationPreference
 
     await Notifications.scheduleNotificationAsync({
       identifier,
-      content: { title: content.title, body: content.body },
+      content: { title: content.title, body: content.body, data: { category } },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,

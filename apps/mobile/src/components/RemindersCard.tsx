@@ -11,6 +11,7 @@ import { TextField } from './ui/TextField';
 const REMINDER_CATEGORIES: Array<{ category: NotificationCategory; label: string }> = [
   { category: 'water', label: 'Water reminder' },
   { category: 'sleep', label: 'Bedtime reminder' },
+  { category: 'goal_progress', label: 'Meal logging reminder' },
 ];
 
 interface ReminderRowProps {

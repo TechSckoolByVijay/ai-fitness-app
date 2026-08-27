@@ -1,7 +1,8 @@
 import '../global.css';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'nativewind';
 import { useEffect, useState } from 'react';
@@ -10,6 +11,32 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ApiError } from '../src/api/client';
 import { useAuthStore } from '../src/state/authStore';
 import { useThemeStore } from '../src/state/themeStore';
+
+/**
+ * Tapping the meal-logging reminder should drop the user straight into
+ * log-meal instead of just opening to Home — the whole point of the nudge is
+ * to make logging a one-tap action. Other reminder categories (water, sleep)
+ * already have a one-tap quick-add on Home, so they don't need this.
+ */
+function useNotificationTapRouting(): void {
+  useEffect(() => {
+    function handleResponse(response: Notifications.NotificationResponse): void {
+      const category = response.notification.request.content.data?.category;
+      if (category === 'goal_progress') {
+        router.push('/log-meal');
+      }
+    }
+
+    // Covers a tap that arrives while the app is already running.
+    const subscription = Notifications.addNotificationResponseReceivedListener(handleResponse);
+    // Covers a cold start caused by the tap itself.
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) handleResponse(response);
+    });
+
+    return () => subscription.remove();
+  }, []);
+}
 
 function shouldRetry(failureCount: number, error: unknown): boolean {
   // 4xx errors (bad request, unauthorized, not found, ...) won't fix
@@ -40,6 +67,8 @@ export default function RootLayout() {
     void hydrate();
     void hydrateTheme();
   }, [hydrate, hydrateTheme]);
+
+  useNotificationTapRouting();
 
   if (status === 'loading') {
     return (
