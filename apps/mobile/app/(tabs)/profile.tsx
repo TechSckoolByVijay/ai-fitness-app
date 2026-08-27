@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import * as Updates from 'expo-updates';
 import { useState } from 'react';
 import { Alert, Platform, ScrollView, View } from 'react-native';
 import { ApiError } from '../../src/api/client';
@@ -12,7 +13,7 @@ import { RemindersCard } from '../../src/components/RemindersCard';
 import { ThemeToggle } from '../../src/components/ThemeToggle';
 import { useDeleteAccount, useLogout } from '../../src/hooks/useAuth';
 import { useMe } from '../../src/hooks/useMe';
-import { getAppInfo } from '../../src/utils/appInfo';
+import { checkForUpdate, getAppInfo } from '../../src/utils/appInfo';
 
 function alertAsync(title: string, message: string): void {
   if (Platform.OS === 'web') {
@@ -49,6 +50,20 @@ export default function ProfileScreen() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const appInfo = getAppInfo();
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState<string | null>(null);
+
+  const handleCheckForUpdate = async () => {
+    setIsCheckingUpdate(true);
+    setUpdateMessage(null);
+    const result = await checkForUpdate();
+    if (result.status === 'updated') {
+      await Updates.reloadAsync();
+      return;
+    }
+    setIsCheckingUpdate(false);
+    setUpdateMessage(result.detail);
+  };
 
   const handleDeleteAccount = () => {
     deleteAccount.mutate(
@@ -186,6 +201,19 @@ export default function ProfileScreen() {
             <Row label="App version" value={appInfo.version} />
             <Row label="Update" value={appInfo.updateSource} />
             <Row label="Channel" value={appInfo.channel} />
+            <View className="mt-3 gap-2">
+              <Button
+                label="Check for updates"
+                variant="secondary"
+                loading={isCheckingUpdate}
+                onPress={() => void handleCheckForUpdate()}
+              />
+              {updateMessage ? (
+                <Text variant="caption" className="text-center">
+                  {updateMessage}
+                </Text>
+              ) : null}
+            </View>
           </Card>
         </>
       )}

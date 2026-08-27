@@ -38,3 +38,37 @@ export function getAppInfo(): AppInfo {
     return { version: 'unknown', channel: 'unknown', runtimeVersion: 'unknown', updateSource: 'unknown' };
   }
 }
+
+export interface UpdateCheckResult {
+  status: 'up-to-date' | 'updated' | 'unsupported' | 'error';
+  detail: string;
+}
+
+/**
+ * Explicit, user-triggered alternative to the native auto-check-on-launch —
+ * added after a real case where the auto-check silently never applied
+ * several published updates and "close the app a few times" gave no way to
+ * tell why. This turns that into an observable result (a specific status +
+ * detail message) instead of a black box, and applies the update
+ * immediately via a reload rather than waiting for yet another manual
+ * relaunch.
+ */
+export async function checkForUpdate(): Promise<UpdateCheckResult> {
+  if (Updates.isEmbeddedLaunch && !Updates.channel) {
+    // Running in a context expo-updates isn't wired up in at all (e.g. Expo Go).
+    return { status: 'unsupported', detail: 'Updates are not available in this environment.' };
+  }
+  try {
+    const result = await Updates.checkForUpdateAsync();
+    if (!result.isAvailable) {
+      return { status: 'up-to-date', detail: "You're already on the latest version." };
+    }
+    await Updates.fetchUpdateAsync();
+    return { status: 'updated', detail: 'Update downloaded — restarting the app now.' };
+  } catch (error) {
+    return {
+      status: 'error',
+      detail: error instanceof Error ? error.message : 'Could not reach the update server.',
+    };
+  }
+}
