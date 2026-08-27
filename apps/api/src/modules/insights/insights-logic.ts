@@ -1,42 +1,4 @@
-import type { GoalType, InsightCard } from '@fitness-app/shared';
-
-export type CalorieAlignment = 'favorable' | 'unfavorable' | 'neutral';
-
-const TOLERANCE_FRACTION = 0.05;
-
-/**
- * "Good" calorie direction depends on the goal — a deficit is progress for
- * weight loss but a setback for muscle gain. Rule-based only (arithmetic
- * over stored targets), deliberately staying in "here's what the numbers
- * say" territory rather than anything that could read as medical judgment —
- * see openai.provider.ts's Coach system prompt for the same boundary
- * applied to the AI-generated side of insights.
- */
-export function classifyCalorieDirection(
-  goalType: GoalType | null,
-  consumedCalories: number,
-  calorieTarget: number,
-): CalorieAlignment {
-  const diff = consumedCalories - calorieTarget;
-  const tolerance = calorieTarget * TOLERANCE_FRACTION;
-
-  if (goalType === 'lose_weight') {
-    if (diff < -tolerance) return 'favorable';
-    if (diff > tolerance) return 'unfavorable';
-    return 'neutral';
-  }
-
-  if (goalType === 'gain_muscle') {
-    if (diff > tolerance) return 'favorable';
-    if (diff < -tolerance) return 'unfavorable';
-    return 'neutral';
-  }
-
-  // maintain_weight and the non-calorie-direction goals (improve_fitness,
-  // improve_health, improve_sleep, healthier_eating): staying close to the
-  // target is the favorable outcome, in either direction.
-  return Math.abs(diff) <= tolerance ? 'favorable' : 'neutral';
-}
+import { classifyCalorieAlignment, type GoalType, type InsightCard } from '@fitness-app/shared';
 
 function round(value: number): number {
   return Math.round(value);
@@ -67,7 +29,7 @@ export function buildYesterdayCard(params: {
     };
   }
 
-  const alignment = classifyCalorieDirection(goalType, yesterdayCalories, calorieTarget);
+  const alignment = classifyCalorieAlignment(goalType, yesterdayCalories, calorieTarget);
   const diff = round(Math.abs(yesterdayCalories - calorieTarget));
   const isSurplus = yesterdayCalories > calorieTarget;
 
@@ -154,7 +116,7 @@ export function buildStreakCard(params: {
   let streak = 0;
   for (let i = dailyCalories.length - 1; i >= 0; i--) {
     const calories = dailyCalories[i];
-    if (!calories || classifyCalorieDirection(goalType, calories, calorieTarget) !== 'favorable') break;
+    if (!calories || classifyCalorieAlignment(goalType, calories, calorieTarget) !== 'favorable') break;
     streak++;
   }
 

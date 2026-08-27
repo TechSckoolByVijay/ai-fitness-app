@@ -1,40 +1,41 @@
 import { describe, expect, it } from 'vitest';
-import { buildStreakCard, buildYesterdayCard, classifyCalorieDirection } from '../../src/modules/insights/insights-logic';
+import { classifyCalorieAlignment } from '@fitness-app/shared';
+import { buildStreakCard, buildYesterdayCard } from '../../src/modules/insights/insights-logic';
 
-describe('classifyCalorieDirection', () => {
+describe('classifyCalorieAlignment', () => {
   it('treats a deficit as favorable for lose_weight', () => {
-    expect(classifyCalorieDirection('lose_weight', 1500, 2000)).toBe('favorable');
+    expect(classifyCalorieAlignment('lose_weight', 1500, 2000)).toBe('favorable');
   });
 
   it('treats a surplus as unfavorable for lose_weight', () => {
-    expect(classifyCalorieDirection('lose_weight', 2400, 2000)).toBe('unfavorable');
+    expect(classifyCalorieAlignment('lose_weight', 2400, 2000)).toBe('unfavorable');
   });
 
   it('treats a surplus as favorable for gain_muscle', () => {
-    expect(classifyCalorieDirection('gain_muscle', 2400, 2000)).toBe('favorable');
+    expect(classifyCalorieAlignment('gain_muscle', 2400, 2000)).toBe('favorable');
   });
 
   it('treats a deficit as unfavorable for gain_muscle', () => {
-    expect(classifyCalorieDirection('gain_muscle', 1500, 2000)).toBe('unfavorable');
+    expect(classifyCalorieAlignment('gain_muscle', 1500, 2000)).toBe('unfavorable');
   });
 
   it('treats being close to target as favorable for maintain_weight in either direction', () => {
-    expect(classifyCalorieDirection('maintain_weight', 2020, 2000)).toBe('favorable');
-    expect(classifyCalorieDirection('maintain_weight', 1980, 2000)).toBe('favorable');
+    expect(classifyCalorieAlignment('maintain_weight', 2020, 2000)).toBe('favorable');
+    expect(classifyCalorieAlignment('maintain_weight', 1980, 2000)).toBe('favorable');
   });
 
   it('treats being far from target as neutral (not unfavorable) for maintain_weight', () => {
-    expect(classifyCalorieDirection('maintain_weight', 2500, 2000)).toBe('neutral');
+    expect(classifyCalorieAlignment('maintain_weight', 2500, 2000)).toBe('neutral');
   });
 
   it('stays within a 5% tolerance band as neutral for lose_weight', () => {
     // 2000 * 0.05 = 100, so 2050 is within tolerance
-    expect(classifyCalorieDirection('lose_weight', 2050, 2000)).toBe('neutral');
+    expect(classifyCalorieAlignment('lose_weight', 2050, 2000)).toBe('neutral');
   });
 
   it('treats non-calorie-direction goals the same as maintain_weight', () => {
-    expect(classifyCalorieDirection('improve_health', 2010, 2000)).toBe('favorable');
-    expect(classifyCalorieDirection(null, 2010, 2000)).toBe('favorable');
+    expect(classifyCalorieAlignment('improve_health', 2010, 2000)).toBe('favorable');
+    expect(classifyCalorieAlignment(null, 2010, 2000)).toBe('favorable');
   });
 });
 

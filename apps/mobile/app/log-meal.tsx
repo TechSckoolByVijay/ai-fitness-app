@@ -133,10 +133,15 @@ export default function LogMealScreen() {
     await runInterpretCore({ imageBase64 }, '');
   };
 
+  // Deliberately does NOT auto-submit on a final voice result — it only
+  // fills the text field (appending, so re-recording via "Add more" builds
+  // on what's already there rather than replacing it). The user always
+  // confirms explicitly, so a short pause mid-thought never sends a
+  // half-finished sentence, and describing a whole day across a few
+  // recording segments works naturally.
   const voice = useVoiceRecognition((finalText) => {
     if (finalText.trim()) {
-      setText(finalText);
-      void runInterpret(finalText);
+      setText((prev) => (prev.trim() ? `${prev.trim()} ${finalText.trim()}` : finalText.trim()));
     }
   });
 
@@ -331,15 +336,17 @@ export default function LogMealScreen() {
           <View className="items-center gap-4 py-8">
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Stop recording"
-              onPress={() => voice.stop()}
+              accessibilityLabel={voice.isListening ? 'Stop recording' : 'Record more'}
+              onPress={voice.isListening ? () => voice.stop() : startRecording}
               className="h-24 w-24 items-center justify-center rounded-full bg-primary-500 shadow-lg active:bg-primary-600"
             >
               <Text className="text-5xl">{voice.isListening ? '🔴' : '🎙️'}</Text>
             </Pressable>
-            <Text variant="subtitle">{voice.isListening ? 'Listening...' : 'Starting...'}</Text>
+            <Text variant="subtitle">
+              {voice.isListening ? 'Listening...' : text.trim() ? "Got it — didn't miss anything?" : 'Starting...'}
+            </Text>
 
-            {voice.transcript ? (
+            {voice.transcript && voice.isListening ? (
               <Text variant="body" className="text-center italic">
                 &quot;{voice.transcript}&quot;
               </Text>
@@ -351,11 +358,19 @@ export default function LogMealScreen() {
               </Text>
             ) : null}
 
-            <Button label="Stop" onPress={() => voice.stop()} className="w-full" />
+            {voice.isListening ? (
+              <Button label="Stop" onPress={() => voice.stop()} className="w-full" />
+            ) : text.trim() ? (
+              <Button label="🎙️ Add more" variant="secondary" onPress={startRecording} className="w-full" />
+            ) : null}
             <Button label="Cancel" variant="ghost" onPress={cancelRecording} />
 
             <View className="mt-2 w-full gap-2">
-              <Text variant="caption">Or type it instead — a whole day at once works too:</Text>
+              <Text variant="caption">
+                {text.trim()
+                  ? "Review what was heard below — edit if anything's off, then confirm:"
+                  : 'Or type it instead — a whole day at once works too:'}
+              </Text>
               <TextField
                 label="What did you eat or do?"
                 value={text}
@@ -364,7 +379,12 @@ export default function LogMealScreen() {
                 multiline
                 className="w-full"
               />
-              <Button label="Log it" onPress={() => runInterpret(text)} disabled={!text.trim()} className="w-full" />
+              <Button
+                label={text.trim() ? '✓ Confirm & log' : 'Log it'}
+                onPress={() => runInterpret(text)}
+                disabled={!text.trim()}
+                className="w-full"
+              />
               <View className="flex-row flex-wrap gap-2">
                 {EXAMPLE_PHRASES.map((phrase) => (
                   <Chip key={phrase} label={phrase} selected={text === phrase} onPress={() => setText(phrase)} />

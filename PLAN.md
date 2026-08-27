@@ -541,6 +541,37 @@ not a redesign.
   extending voice extraction to a third event type was more scope than this
   pass needed.
 
+## Voice input no longer auto-submits
+
+User feedback: after speaking, the app submitted almost immediately (~1-2s
+silence detection) with no chance to review or keep talking. Fixed by
+decoupling "voice recognition finalized" from "submit to the API" — a
+finalized voice segment now just appends to the text field (never
+replaces it, so re-recording via a new "🎙️ Add more" button builds on
+what's already there) and the user must explicitly tap "✓ Confirm & log".
+This composes naturally with whole-day logging above — describe breakfast,
+tap Add more, describe lunch, then confirm once.
+
+## Calorie pacing indicator ("don't just show 0/2020, use what we know")
+
+User feedback: showing "0 / 2020 kcal" early in the day looks alarming/
+uninformative, and the app already has enough data (height/weight/activity)
+to say more than that. Added a pacing indicator to the Home calorie card
+rather than a new raw number — a marker line on the existing progress bar
+showing "where you'd typically be by this time of day" (prorated across a
+fixed 7am-10pm eating window, not a real per-user pattern — deliberately
+not claiming more precision than that), plus a short factual sentence
+("180 kcal under pace — nice, that's building today's deficit").
+
+Goal-aware using the exact same judgment as the backend's yesterday insight
+card: a deficit is favorable for `lose_weight`, a surplus is favorable for
+`gain_muscle`. Rather than duplicate that logic, `classifyCalorieDirection`
+moved out of `insights-logic.ts` into `packages/shared/src/utils/
+calorie-alignment.ts` as `classifyCalorieAlignment` — now the single
+canonical implementation both the backend (yesterday, server-side) and
+mobile (right now, client-side, since "now" is inherently a device-local
+concept) import, instead of two copies that could drift.
+
 ## Known follow-ups (not yet done)
 
 - `infra/main.bicep`'s role assignment will hit the same chicken-and-egg

@@ -14,6 +14,7 @@ import { WaterCard } from '../../src/components/WaterCard';
 import { useDashboard } from '../../src/hooks/useDashboard';
 import { useInsights } from '../../src/hooks/useInsights';
 import { useMe } from '../../src/hooks/useMe';
+import { getCaloriePace } from '../../src/utils/calorieProgress';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -27,6 +28,11 @@ export default function HomeScreen() {
   const insights = useInsights();
   const me = useMe();
   const firstName = me.data?.name?.split(' ')[0];
+  const primaryGoal = me.data?.goals.find((g) => g.isPrimary)?.type ?? null;
+  const caloriePace =
+    dashboard.data?.calorieTarget != null
+      ? getCaloriePace(primaryGoal, dashboard.data.caloriesConsumed, dashboard.data.calorieTarget)
+      : null;
 
   return (
     <View className="flex-1 bg-white dark:bg-surface-dark">
@@ -61,10 +67,19 @@ export default function HomeScreen() {
                 <Text variant="body">/ {dashboard.data.calorieTarget ?? '—'} kcal</Text>
               </View>
               <View className="mt-3">
-                <ProgressBar value={dashboard.data.caloriesConsumed} target={dashboard.data.calorieTarget} />
+                <ProgressBar
+                  value={dashboard.data.caloriesConsumed}
+                  target={dashboard.data.calorieTarget}
+                  markerPct={
+                    caloriePace && dashboard.data.calorieTarget
+                      ? (caloriePace.expectedByNow / dashboard.data.calorieTarget) * 100
+                      : undefined
+                  }
+                />
               </View>
               <Text variant="caption" className="mt-1.5">
-                Estimated calories
+                {caloriePace ? caloriePace.message : 'Estimated calories'}
+                <Text className="text-[11px] opacity-70"> · estimated</Text>
               </Text>
             </Card>
 
