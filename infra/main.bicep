@@ -152,10 +152,13 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
       ]
     }
     template: {
-      // Scale to zero when idle — at 5-6 users, this is what keeps compute
-      // cost near $0 on the Consumption plan instead of a flat monthly fee.
+      // Kept at 1 (not 0) deliberately: scale-to-zero saved compute cost but
+      // meant the first request after a couple of idle hours had to wait for
+      // a cold container start, which showed up as a very slow login. One
+      // always-on replica costs a small flat monthly fee instead of ~$0, but
+      // keeps login responsive at all times.
       scale: {
-        minReplicas: 0
+        minReplicas: 1
         maxReplicas: 2
       }
       containers: [
