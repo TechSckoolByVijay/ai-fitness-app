@@ -802,3 +802,64 @@ Until that secret exists, triggering the workflow fails cleanly at the
 build step with an auth error — nothing destructive either way. Once it's
 set, trigger it from the Actions tab (`workflow_dispatch`, pick a profile)
 and I can read the run logs and iterate if anything's off.
+
+## Reminder deep-link, onboarding tour, meal-type insight (2026-08-27, continued)
+
+Closing out the remaining items from the earlier user-feedback list
+(onboarding guidance, notification-tap prompt, meal-type-aware insights),
+after the whole-day logging / voice-confirm / calorie-pacing batch above
+shipped successfully (both OTA and backend deploy verified green).
+
+**Notification-tap deep link.** Tapping the meal-logging reminder used to
+just open the app to Home like any other launch — no different from not
+tapping a notification at all. Added a root-level listener
+(`useNotificationTapRouting` in `app/_layout.tsx`) using
+`addNotificationResponseReceivedListener` (warm-app taps) and
+`getLastNotificationResponseAsync` (cold-start taps, checked once on mount)
+that routes straight to `log-meal` when the tapped notification's
+`data.category` is `goal_progress`. The scheduled notification content
+gained `data: { category }` (`lib/notifications.ts`) so the tap handler can
+tell which reminder was tapped. Landing on `log-meal` already auto-starts
+voice listening with example phrases as quick-pick chips, which covers the
+"give an example" half of the ask without any extra UI.
+
+**Onboarding tour.** New users had no walkthrough of what the app actually
+does day to day. Added a 7th onboarding step (`app/(onboarding)/tour.tsx`,
+after health conditions, before landing on Home) — a single static screen
+listing four things worth knowing (voice logging, whole-day batch logging,
+the Home progress view, reminders), not a swipeable carousel. Chose a
+static list deliberately: a swipe gesture is one more thing to figure out
+for a non-technical audience, and the app's own philosophy (per the user's
+own instruction) is to keep things simple and not bombard with UI. Bumped
+`OnboardingScaffold`'s `TOTAL_STEPS` 6 → 7 and `health.tsx`'s finish
+handler now routes to `/tour` instead of `/` directly.
+
+**Meal-type-aware insight.** `mealType` was already stored per food entry
+but insights never used it. Added `buildMealProteinCard` (
+`insights-logic.ts`) comparing average daily protein across
+breakfast/lunch/dinner (snacks excluded — too unstructured to compare
+fairly) over the trailing 7 days, e.g. "You're getting more protein at
+lunch (~45g) than dinner (~15g). Try adding a protein source to dinner."
+Deliberately conservative: needs at least 3 distinct logged days per meal
+type before comparing at all, and the gap has to be both ≥8g absolute and
+≥35% of the stronger meal — otherwise it stays quiet rather than reacting
+to one noisy day. `insights.service.ts` computes per-meal-type daily
+protein via one `foodEntry.findMany` query grouped in memory (day × meal
+type → summed protein, then averaged across days) rather than a second
+per-meal SQL aggregation, since the entry count here is small enough that
+in-memory grouping is simpler and plenty fast.
+
+**Manual exercise entry** (another item from the same feedback list) turned
+out to need no new work — the existing `log-meal.tsx` text field already
+accepts typed (not just spoken) exercise phrases like "I did 30 min of
+weightlifting," and the AI pipeline already classifies it as an exercise
+event via the same multi-event pipeline used for food. No dedicated form
+was built, consistent with the app's voice/text-first design rather than
+adding a second parallel entry path.
+
+All three changes typechecked and passed their test suites (mobile: 41
+Jest tests; API: 172 Vitest tests, including a new integration test that
+logs 3 days of high/low-protein lunch/dinner entries and confirms the card
+appears). The reminder + tour changes are JS-only and shipped via `eas
+update` (no native dependency, no rebuild needed); the insights change
+shipped via the normal GitHub Actions → Azure Container Apps pipeline.
