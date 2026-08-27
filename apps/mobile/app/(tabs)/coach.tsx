@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { ApiError } from '../../src/api/client';
 import { ChatBubble } from '../../src/components/ChatBubble';
@@ -10,12 +10,7 @@ import { TextField } from '../../src/components/ui/TextField';
 import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
 import { useCoachConversation, useSendCoachMessage } from '../../src/hooks/useCoach';
 import { useVoiceRecognition } from '../../src/hooks/useVoiceRecognition';
-
-const STARTER_PROMPTS = [
-  'Suggest a snack for me right now',
-  "What's my calorie budget left today?",
-  'I want a high-protein dinner idea',
-];
+import { getContextualCoachPrompts } from '../../src/utils/coachSuggestions';
 
 export default function CoachScreen() {
   const conversation = useCoachConversation();
@@ -23,6 +18,9 @@ export default function CoachScreen() {
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  // Computed once per screen visit, not on every render — the suggestions
+  // only need to be roughly right for "now", not update live to the minute.
+  const suggestedPrompts = useMemo(() => getContextualCoachPrompts(), []);
 
   const messages = conversation.data?.conversation?.messages ?? [];
 
@@ -71,7 +69,7 @@ export default function CoachScreen() {
             subtitle="Tell me what you're in the mood for and I'll suggest something that fits your budget and preferences."
           />
           <View className="w-full gap-2">
-            {STARTER_PROMPTS.map((prompt) => (
+            {suggestedPrompts.map((prompt) => (
               <Chip key={prompt} label={prompt} selected={false} onPress={() => submit(prompt)} />
             ))}
           </View>
@@ -87,6 +85,14 @@ export default function CoachScreen() {
           ))}
         </ScrollView>
       )}
+
+      {messages.length > 0 ? (
+        <View className="flex-row flex-wrap gap-2 px-5 pb-2">
+          {suggestedPrompts.map((prompt) => (
+            <Chip key={prompt} label={prompt} selected={false} onPress={() => submit(prompt)} />
+          ))}
+        </View>
+      ) : null}
 
       {voice.isListening ? (
         <Text variant="caption" className="px-5 pb-1 italic">
