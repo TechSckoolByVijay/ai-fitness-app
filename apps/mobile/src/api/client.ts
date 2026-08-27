@@ -96,10 +96,22 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}, 
   }
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : undefined;
+  let data: unknown;
+  try {
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    // A non-JSON body (an HTML error page from a proxy/gateway during a
+    // brief backend restart, for instance) used to throw a raw SyntaxError
+    // here — every caller's catch block then fell back to a generic
+    // "something went wrong" with no indication it was transient network
+    // trouble rather than a real failure. Surfacing it as an ApiError keeps
+    // that same distinction callers already rely on for other failures.
+    throw new ApiError('The server returned an unexpected response. Please try again in a moment.', response.status, 'INVALID_RESPONSE');
+  }
 
   if (!response.ok) {
-    throw new ApiError(data?.message ?? 'Something went wrong', response.status, data?.error);
+    const message = (data as { message?: string } | undefined)?.message ?? 'Something went wrong';
+    throw new ApiError(message, response.status, (data as { error?: string } | undefined)?.error);
   }
 
   return data as T;
