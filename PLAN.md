@@ -511,14 +511,38 @@ public; secrets live only in Container App secrets / GitHub Secrets, never
 shipped to the mobile app. The one real gap this surfaced was rate
 limiting, now fixed (above).
 
+## Whole-day / multi-meal logging
+
+User feedback: logging couldn't handle "breakfast was X, lunch was Y, and I
+went for a walk" in one message — the pipeline only ever interpreted the
+first extracted event, and the AI prompt explicitly told the model to force
+everything into one event. Fixed at the source: `HealthExtractionResult`
+already supported an array of heterogeneous food/exercise events (the
+schema was never the limitation), so this was a prompt-and-pipeline fix,
+not a redesign.
+- `event.service.ts`'s `interpretHealthEvent` → `interpretHealthEvents`,
+  returns `InterpretedHealthEvent[]` (always an array, single-element for
+  the common one-meal case — no singular/plural special-casing for callers).
+- OpenAI prompt now explicitly recognizes meal-time boundaries (breakfast/
+  lunch/dinner/named times) as separate-event signals, and infers a
+  sensible clock time per named meal (~8am/1pm/8pm) instead of stamping
+  every event with the current time — otherwise multiple meals logged
+  after the fact would all land on the same timestamp.
+- **Live-verified against the real API**, not just mocked: "This morning I
+  had a glass of milk and a banana, for lunch three chapatis and rice, and
+  I went for a 20 minute walk in the evening" correctly produced 3 separate
+  events with sensible per-meal timestamps and real USDA nutrition values.
+- Mobile: `log-meal.tsx` rewritten to render a list of cards instead of
+  one — each with its own confirm/edit exactly as before, plus a "Confirm
+  all" shortcut and a per-card remove-from-batch control, shown only when
+  there's genuinely more than one event (the single-meal case looks
+  identical to before, no new UI chrome). Water mentioned in a whole-day
+  utterance is NOT parsed — water logging stays on the dedicated Home card;
+  extending voice extraction to a third event type was more scope than this
+  pass needed.
+
 ## Known follow-ups (not yet done)
 
-- `.github/workflows/deploy-api.yml` still hasn't run end to end — the
-  `AZURE_CREDENTIALS` secret exists now (service principal
-  `fitness-coach-github-actions`, Contributor scoped to just the
-  `fitness-app` resource group), but none of this session's changes are
-  pushed to GitHub yet (many uncommitted files) — that push is the user's
-  call, per how commits have worked all session.
 - `infra/main.bicep`'s role assignment will hit the same chicken-and-egg
   deadlock (issue #8 above) on any from-scratch redeploy — worth splitting
   into a second deployment step before relying on the template again.
@@ -532,6 +556,100 @@ limiting, now fixed (above).
   problem but isn't. Prefix the command with `MSYS_NO_PATHCONV=1`, or use a
   full `https://management.azure.com/...` URL via `az rest` instead — this
   wasted significant time before being root-caused.
+
+## Overnight autonomous session (2026-08-27) — photo logging, insights, health-safety hardening, legal pages
+
+User went to sleep and gave explicit standing authorization to build, test,
+and deploy without supervision until morning ("it's okay if it breaks
+because I know there's no one else using this application"). Everything
+below was built, tested, and pushed live during that window. Google
+Sign-In and the actual Play Store submission were explicitly NOT touched —
+user wants to be present for both.
+
+**Photo-based meal logging** (the flagship ask). Two things decided against
+mid-plan, both worth remembering:
+- **Not Azure Document Intelligence** — user has free MCT credits for it,
+  but it's an OCR/document-structure service, not a vision/scene-recognition
+  one; it cannot look at a plate of food and identify what's on it. User
+  agreed to skip it and use OpenAI's vision model for everything instead.
+- Implementation reused the *entire* existing text-interpretation pipeline
+  rather than building a parallel one: `FoodInterpretRequestSchema` gained
+  an optional `imageBase64` field, `AIProvider.extractHealthEvents` now
+  takes `text?`/`imageBase64?` instead of a required `text`, and
+  `OpenAIProvider` builds a multimodal Responses-API message (image + a
+  photo-specific instruction appended to the same system prompt) when an
+  image is present. Everything downstream — confidence tiers, nutrition
+  lookup, the calorie slider, confirm/edit — needed zero changes.
+- Mock provider returns an honest "meal from photo" placeholder (medium
+  confidence) rather than pretending to recognize something — mock mode
+  still exercises the full confirm flow without faking vision capability.
+- **Live-verified against the real OpenAI API** (not just mocked): a
+  non-food test image correctly came back as "unclear photo" (low
+  confidence, triggers the clarifying-question flow) rather than a
+  hallucinated dish — confirms the "never fabricate what you can't see"
+  instruction in the prompt is actually being honored, not just written.
+- Mobile: new camera button next to the mic button on Home
+  (`VoiceButton.tsx`). Picking/taking a photo hands the base64 image to
+  `log-meal.tsx` via a tiny Zustand store (`pendingPhoto.ts`) rather than a
+  navigation param — a photo is far too large for that. `log-meal.tsx`
+  checks for a pending photo on mount and skips straight to processing
+  instead of auto-starting voice; error/retry states were adjusted so
+  "Try again" retries the same photo instead of assuming there's text to
+  retry with. New dependency: `expo-image-picker` — this is what forced a
+  native rebuild (see below); no other feature tonight needed one.
+- **Not independently verified end-to-end on a real device** — no camera
+  access in this environment. The backend half is proven against the real
+  API; the mobile picker/upload flow is typechecked and follows established
+  patterns exactly, but genuinely needs a real first test once the new
+  build is installed. First thing worth trying in the morning.
+
+**Coach + insights hardened for Google Play's health-app review**, prompted
+directly by the user relaying Play's actual review criteria for AI health
+content mid-session:
+- The Coach's `CoachContextInput` never included the user's onboarding-
+  reported health conditions at all — a real gap, now fixed
+  (`coach-context.service.ts` fetches them; system prompt factors them into
+  tone/caution without diagnosing).
+- System prompt gained an explicit wellness-not-medical boundary: no
+  diagnosing, no prescribing supplements/dosages, no condition-specific
+  exercise prescriptions — general lifestyle framing only, with a redirect
+  to a healthcare provider for anything beyond that. Matches the exact
+  "DO/AVOID" framing the user relayed from Play's own guidance.
+  Permanent, visible disclaimer added to the Coach screen.
+- The new **rule-based insight cards** (below) were designed with the same
+  boundary from the start — pure arithmetic/template language, tested to
+  assert no diagnostic or prescriptive wording ever appears.
+
+**Goal-aware daily insight cards** — the "yesterday you were in a calorie
+deficit, that's good progress" feature. Rule-based only (no AI, no
+diagnostic risk, free-tier-safe): `GET /insights/today` returns up to two
+cards — yesterday's result framed relative to the user's *actual* goal
+direction (`classifyCalorieDirection()` — a deficit is progress for
+`lose_weight` but a setback for `gain_muscle`, favorable-within-tolerance
+for everything else), and a streak card for consecutive favorable days.
+20 unit tests on the pure logic, 4 integration tests on the route/DB
+wiring. Rendered on Home right below the greeting, above the raw numbers —
+motivational framing first, data underneath, matching the "don't bombard
+with data, surface the story" direction the user gave.
+
+**Privacy Policy + Terms of Service**, served live at `/legal/privacy` and
+`/legal/terms` on the API's own domain — no separate hosting needed, and
+it's a real Play Console submission requirement (Data Safety / Health Apps
+declaration both need a live URL). Written to reflect what the app actually
+does and who data actually goes to (OpenAI, USDA, Azure) — not a generic
+template — but worth a personal read-through before an actual submission.
+
+**Everything is backend-deployed and live already** (pushed to `main`
+in stages throughout the night; each push auto-deployed via the now-proven
+CI/CD pipeline, verified live after each one — health checks and API
+version confirmed at each step, not just "the pipeline said success").
+The **one exception** is the photo-logging mobile UI and the insight cards'
+mobile UI, which need the native rebuild triggered for `expo-image-picker`
+(app.json bumped 1.0.2 → 1.0.3) — that build was queued before this summary
+was written; check `eas build:list` for its status. **Install the new APK
+to get everything from tonight** — it bundles all of tonight's JS changes
+as its embedded bundle, so no separate OTA step is needed after installing
+it.
 
 ## Mobile app pointed at production
 

@@ -15,16 +15,20 @@ export interface EventPipelineDeps {
 /**
  * The general section-10/16 pipeline: Voice -> Speech-to-text -> LLM
  * structured extraction -> validation -> branch on event type (food vs
- * exercise) -> domain-specific interpretation. Returns an unpersisted
- * interpretation; nothing is written to the database here. Only the first
- * extracted event is interpreted (same simplification as Phase 1's
- * food-only pipeline) — one utterance is treated as describing one thing.
+ * exercise) -> domain-specific interpretation. Returns unpersisted
+ * interpretations; nothing is written to the database here.
+ *
+ * One utterance can describe more than one thing — "breakfast was X, lunch
+ * was Y, and I went for a walk" extracts as three separate events, each
+ * interpreted independently. The common case (one meal, one utterance)
+ * still returns a single-element array — callers always deal with a list,
+ * never a special-cased singular/plural split.
  */
-export async function interpretHealthEvent(
+export async function interpretHealthEvents(
   deps: EventPipelineDeps,
   weightKg: number,
   input: EventInterpretRequest,
-): Promise<InterpretedHealthEvent> {
+): Promise<InterpretedHealthEvent[]> {
   const sourceText = input.imageBase64
     ? '[Photo]'
     : input.text ??
@@ -50,20 +54,18 @@ export async function interpretHealthEvent(
   // Never trust raw provider output — validate against the shared schema
   // before it's used anywhere downstream (spec section 34).
   const parsed = HealthExtractionResultSchema.safeParse(rawExtraction);
-  if (!parsed.success) {
+  if (!parsed.success || parsed.data.events.length === 0) {
     throw new InterpretationFailedError();
   }
 
-  const event = parsed.data.events[0];
-  if (!event) {
-    throw new InterpretationFailedError();
-  }
-
-  if (event.type === 'exercise') {
-    const activity = interpretExerciseEvent(event, sourceText, weightKg);
-    return { type: 'exercise', activity };
-  }
-
-  const meal = await interpretFoodEvent(event, sourceText, deps.nutritionService);
-  return { type: 'food', meal };
+  return Promise.all(
+    parsed.data.events.map(async (event): Promise<InterpretedHealthEvent> => {
+      if (event.type === 'exercise') {
+        const activity = interpretExerciseEvent(event, sourceText, weightKg);
+        return { type: 'exercise', activity };
+      }
+      const meal = await interpretFoodEvent(event, sourceText, deps.nutritionService);
+      return { type: 'food', meal };
+    }),
+  );
 }

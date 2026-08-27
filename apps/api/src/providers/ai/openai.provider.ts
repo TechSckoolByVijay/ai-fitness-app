@@ -94,9 +94,11 @@ function toHealthExtractionResult(raw: z.infer<typeof OpenAIExtractionSchema>): 
   };
 }
 
-const SYSTEM_PROMPT = `You extract structured health-logging data from a user's natural-language description of something they ate OR a physical activity they did. Respond only with the structured output — never invent facts you aren't reasonably confident about. Decide the single event type — "food" or "exercise" — from what the utterance is actually about; do not produce both for one utterance.
+const SYSTEM_PROMPT = `You extract structured health-logging data from a user's natural-language description of what they ate and/or physical activity they did — this may describe just one thing, or a whole day at once (e.g. "breakfast was X, lunch was Y, and I went for a walk"). Respond only with the structured output — never invent facts you aren't reasonably confident about.
 
-Set every event's timestamp to an ISO 8601 datetime — if the user mentioned a time, resolve it against today's date (given below); otherwise use the current time given below.
+Produce ONE event per distinct meal/sitting or activity the user describes — do not force everything into a single event, and do not split one meal's items across multiple events either. Recognize a NEW event boundary when the user names a different meal-time (breakfast/lunch/dinner/snack), a clearly different time of day, or a distinct activity — items mentioned together for the same meal/sitting still belong in ONE event together. A single utterance describing one meal produces exactly one food event, same as before; only produce multiple events when the user actually described multiple separate things.
+
+Set every event's timestamp to an ISO 8601 datetime — if the user mentioned a time, resolve it against today's date (given below); if they only named a meal (breakfast/lunch/dinner/snack) without a time, use a reasonable clock time for that meal on today's date (e.g. ~8am breakfast, ~1pm lunch, ~8pm dinner) rather than the current time — this matters because these events may be logged well after they happened. Only fall back to the current time given below when nothing else indicates when it happened.
 
 === FOOD events ===
 
@@ -114,17 +116,23 @@ For each distinct food mentioned, produce an item with:
   - 0.5-0.79 (medium): EITHER the food name itself is generic/ambiguous (e.g. "curry" or "gravy" with no type given) but a quantity was given, OR the food is specific but the quantity was genuinely vague ("some rice", "a bit of dal").
   - 0.0-0.49 (low): the food name is generic/ambiguous AND no real quantity was given (e.g. "some curry"), or the text is too unclear to tell what was eaten at all. Do NOT lower confidence just because the dish is unusual, non-Indian, or not in any example above — only lower it for genuine ambiguity in what the user said.
 
-Group all items from one utterance into a single event of type "food". Set the event's mealType to whichever of breakfast/lunch/dinner/snack is implied by the text or the current time (given below); if nothing suggests otherwise, infer breakfast for morning, lunch for midday, snack for afternoon, dinner for evening/night.
+Group all items belonging to the SAME meal/sitting into a single event of type "food" — never split one meal's own items into separate events. Set each event's mealType to whichever of breakfast/lunch/dinner/snack is implied by that meal's own text or time; if nothing suggests otherwise for a single-meal utterance, infer breakfast for morning, lunch for midday, snack for afternoon, dinner for evening/night.
 
-Worked example — input: "At 12 o'clock I ate two medium chapatis, around 200 grams of less-oily medium-spicy curry, and a bowl of salad."
+Worked example (single meal) — input: "At 12 o'clock I ate two medium chapatis, around 200 grams of less-oily medium-spicy curry, and a bowl of salad."
 Correct items (note each descriptor stays attached to only the item it modifies):
   1. name: "chapati", quantity: 2, unit: "medium", confidence: 0.9 (specific + explicit quantity)
   2. name: "curry", quantity: 200, unit: "g", estimatedWeightGrams: 200, preparationMethod: "less_oily", spiceLevel: "medium", confidence: 0.6 (generic category word, capped below high even with a quantity)
   3. name: "salad", quantity: 1, unit: "bowl", confidence: 0.85 (specific + implied quantity)
 
+Worked example (whole day, multiple events) — input: "This morning I had a glass of milk and a banana, for lunch three chapatis and rice, and I went for a 20 minute walk in the evening."
+Produces THREE separate events, each with only its own items — never merge across meals:
+  1. food event, mealType "breakfast", timestamp ~8am: items ["milk" (1 glass), "banana" (1)]
+  2. food event, mealType "lunch", timestamp ~1pm: items ["chapati" (3), "rice" (1 bowl, since no explicit quantity was given)]
+  3. exercise event, timestamp ~evening (e.g. 6pm): activityType "walking", durationMinutes 20
+
 === EXERCISE events ===
 
-For a physical activity (walking, running, cycling, swimming, yoga, badminton, tennis, football, basketball, cricket, gym/weight training, dancing, hiking, or any other exercise), produce ONE exercise event with:
+For each distinct physical activity the user describes (walking, running, cycling, swimming, yoga, badminton, tennis, football, basketball, cricket, gym/weight training, dancing, hiking, or any other exercise), produce its own exercise event with:
 - activityType: the closest matching category from: walking, running, cycling, swimming, yoga, badminton, tennis, football, basketball, cricket, gym_workout, weight_training, dancing, hiking, other.
 - durationMinutes: only if the user stated a duration (convert hours to minutes) — otherwise null.
 - steps: only if the user stated a step count — otherwise null.

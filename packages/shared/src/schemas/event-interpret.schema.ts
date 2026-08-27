@@ -13,6 +13,7 @@ export const InterpretedHealthEventSchema = z.discriminatedUnion('type', [
 export type InterpretedHealthEvent = z.infer<typeof InterpretedHealthEventSchema>;
 
 export const EventInterpretResponseSchema = z.object({
-  event: InterpretedHealthEventSchema,
+  /** One utterance can describe multiple meals/activities (e.g. a whole day logged at once) — always an array, even for the common single-event case. */
+  events: z.array(InterpretedHealthEventSchema).min(1),
 });
 export type EventInterpretResponse = z.infer<typeof EventInterpretResponseSchema>;

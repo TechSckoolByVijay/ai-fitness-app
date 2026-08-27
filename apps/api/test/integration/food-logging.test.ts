@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+﻿import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestApp, uniqueEmail } from './helpers';
 
@@ -33,9 +33,10 @@ describe('food logging round trip', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    const { event } = response.json();
-    expect(event.type).toBe('food');
-    const meal = event.meal;
+    const { events } = response.json();
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe('food');
+    const meal = events[0].meal;
     expect(meal.items).toHaveLength(1);
     expect(meal.items[0].name).toBe('banana');
     expect(meal.tier).toBe('high');
@@ -61,7 +62,7 @@ describe('food logging round trip', () => {
       headers: { authorization: `Bearer ${token}` },
       payload: { text: 'I ate a banana.', nowISO },
     });
-    const { meal } = interpretRes.json().event;
+    const { meal } = interpretRes.json().events[0];
 
     const createRes = await app.inject({
       method: 'POST',
@@ -100,7 +101,7 @@ describe('food logging round trip', () => {
       },
     });
 
-    const { meal } = response.json().event;
+    const { meal } = response.json().events[0];
     expect(meal.items).toHaveLength(3);
     expect(meal.items.map((i: { name: string }) => i.name)).toEqual(['chapati', 'curry', 'salad']);
   });
@@ -115,7 +116,7 @@ describe('food logging round trip', () => {
       payload: { text: 'I had some curry.', nowISO: '2026-08-25T09:00:00.000Z' },
     });
 
-    const { meal } = response.json().event;
+    const { meal } = response.json().events[0];
     expect(meal.tier).toBe('low');
     expect(meal.autoLog).toBe(false);
     expect(meal.clarifyingQuestion).toBeTruthy();
@@ -133,9 +134,10 @@ describe('food logging round trip', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    const { event } = response.json();
-    expect(event.type).toBe('food');
-    const { meal } = event;
+    const { events } = response.json();
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe('food');
+    const { meal } = events[0];
     expect(meal.sourceText).toBe('[Photo]');
     expect(meal.items).toHaveLength(1);
     expect(meal.items[0].name).toBe('meal from photo');
@@ -165,7 +167,7 @@ describe('food logging round trip', () => {
       headers: { authorization: `Bearer ${token}` },
       payload: { text: 'I ate a banana.', nowISO },
     });
-    const { meal } = interpretRes.json().event;
+    const { meal } = interpretRes.json().events[0];
 
     const createRes = await app.inject({
       method: 'POST',
@@ -214,7 +216,7 @@ describe('food logging round trip', () => {
       headers: { authorization: `Bearer ${tokenA}` },
       payload: { text: 'I ate a banana.', nowISO: new Date().toISOString() },
     });
-    const { meal } = interpretRes.json().event;
+    const { meal } = interpretRes.json().events[0];
 
     const createRes = await app.inject({
       method: 'POST',

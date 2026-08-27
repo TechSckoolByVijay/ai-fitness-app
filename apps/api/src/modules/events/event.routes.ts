@@ -1,7 +1,7 @@
 import { EventInterpretRequestSchema, EventInterpretResponseSchema } from '@fitness-app/shared';
 import type { FastifyInstance } from 'fastify';
 import { DEFAULT_WEIGHT_KG } from '../exercise/calorie-burn';
-import { interpretHealthEvent } from './event.service';
+import { interpretHealthEvents } from './event.service';
 
 export async function eventRoutes(app: FastifyInstance) {
   app.post('/events/interpret', { preHandler: app.authenticate }, async (request, reply) => {
@@ -10,7 +10,7 @@ export async function eventRoutes(app: FastifyInstance) {
     const profile = await app.prisma.profile.findUnique({ where: { userId: request.user.sub } });
     const weightKg = profile?.currentWeightKg ? Number(profile.currentWeightKg) : DEFAULT_WEIGHT_KG;
 
-    const event = await interpretHealthEvent(
+    const events = await interpretHealthEvents(
       {
         aiProvider: app.aiProvider,
         speechProvider: app.speechProvider,
@@ -20,6 +20,6 @@ export async function eventRoutes(app: FastifyInstance) {
       body,
     );
 
-    reply.send(EventInterpretResponseSchema.parse({ event }));
+    reply.send(EventInterpretResponseSchema.parse({ events }));
   });
 }

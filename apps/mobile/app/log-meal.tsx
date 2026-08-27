@@ -1,4 +1,4 @@
-import { sumNutrition, type InterpretedActivity, type InterpretedMeal } from '@fitness-app/shared';
+import { sumNutrition, type InterpretedActivity, type InterpretedHealthEvent, type InterpretedMeal } from '@fitness-app/shared';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { ApiError } from '../src/api/client';
@@ -20,13 +20,32 @@ import { scaleNutritionToCalories } from '../src/utils/nutritionOverride';
 
 const EXAMPLE_PHRASES = [
   'I ate a banana.',
-  'I had two chapatis and dal.',
+  'Breakfast was milk and a banana, lunch was 3 chapatis and rice.',
   'I played badminton for 30 minutes.',
   'I walked 1000 steps.',
 ];
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function eventLabel(event: InterpretedHealthEvent): string {
+  if (event.type === 'food') return event.meal.mealType;
+  return event.activity.activityType.replace(/_/g, ' ');
+}
+
+function eventEmoji(event: InterpretedHealthEvent): string {
+  if (event.type === 'exercise') return '🏃';
+  switch (event.meal.mealType) {
+    case 'breakfast':
+      return '🍳';
+    case 'lunch':
+      return '🥗';
+    case 'dinner':
+      return '🍽️';
+    default:
+      return '🍎';
+  }
 }
 
 export default function LogMealScreen() {
@@ -38,55 +57,6 @@ export default function LogMealScreen() {
   const createEntry = useCreateFoodEntry();
   const createActivity = useCreateExerciseEntry();
   const isSubmitting = createEntry.isPending || createActivity.isPending;
-
-  const runInterpret = async (inputText: string) => {
-    const trimmed = inputText.trim();
-    if (!trimmed) return;
-
-    dispatch({ type: 'SUBMIT' });
-    try {
-      const result = await interpretEvent.mutateAsync({ text: trimmed, nowISO: new Date().toISOString() });
-      dispatch({ type: 'INTERPRETED', event: result.event, sourceText: trimmed });
-
-      if (result.event.type === 'food' && result.event.meal.autoLog) {
-        await persistMeal(result.event.meal);
-      } else if (result.event.type === 'exercise' && result.event.activity.autoLog) {
-        await persistActivity(result.event.activity);
-      }
-    } catch (error) {
-      dispatch({
-        type: 'FAILED',
-        message: error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
-        retryText: trimmed,
-      });
-    }
-  };
-
-  const runInterpretPhoto = async (imageBase64: string) => {
-    dispatch({ type: 'SUBMIT' });
-    try {
-      const result = await interpretEvent.mutateAsync({ imageBase64, nowISO: new Date().toISOString() });
-      dispatch({ type: 'INTERPRETED', event: result.event, sourceText: '[Photo]' });
-
-      if (result.event.type === 'food' && result.event.meal.autoLog) {
-        await persistMeal(result.event.meal);
-      } else if (result.event.type === 'exercise' && result.event.activity.autoLog) {
-        await persistActivity(result.event.activity);
-      }
-    } catch (error) {
-      dispatch({
-        type: 'FAILED',
-        message: error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
-      });
-    }
-  };
-
-  const voice = useVoiceRecognition((finalText) => {
-    if (finalText.trim()) {
-      setText(finalText);
-      void runInterpret(finalText);
-    }
-  });
 
   const persistMeal = async (meal: InterpretedMeal) => {
     await createEntry.mutateAsync({
@@ -106,8 +76,6 @@ export default function LogMealScreen() {
         nutrition: item.nutrition,
       })),
     });
-    setText('');
-    goBackOrHome();
   };
 
   const persistActivity = async (activity: InterpretedActivity) => {
@@ -122,21 +90,114 @@ export default function LogMealScreen() {
       caloriesBurned: activity.caloriesBurned,
       confidence: activity.confidence,
     });
+  };
+
+  const persistEvent = async (event: InterpretedHealthEvent) => {
+    if (event.type === 'food') await persistMeal(event.meal);
+    else await persistActivity(event.activity);
+  };
+
+  const runInterpretCore = async (input: { text: string } | { imageBase64: string }, sourceTextForFailure: string) => {
+    dispatch({ type: 'SUBMIT' });
+    try {
+      const result = await interpretEvent.mutateAsync({ ...input, nowISO: new Date().toISOString() });
+      const sourceText = 'imageBase64' in input ? '[Photo]' : sourceTextForFailure;
+      dispatch({ type: 'INTERPRETED', events: result.events, sourceText });
+
+      // Auto-log stays off globally (see food.service.ts) but the pipeline
+      // still supports it — honor it here if ever re-enabled per-event.
+      const autoEvents = result.events.filter(
+        (e) => (e.type === 'food' && e.meal.autoLog) || (e.type === 'exercise' && e.activity.autoLog),
+      );
+      if (autoEvents.length === result.events.length && autoEvents.length > 0) {
+        await Promise.all(autoEvents.map(persistEvent));
+        setText('');
+        goBackOrHome();
+      }
+    } catch (error) {
+      dispatch({
+        type: 'FAILED',
+        message: error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
+        retryText: 'imageBase64' in input ? undefined : sourceTextForFailure,
+      });
+    }
+  };
+
+  const runInterpret = async (inputText: string) => {
+    const trimmed = inputText.trim();
+    if (!trimmed) return;
+    await runInterpretCore({ text: trimmed }, trimmed);
+  };
+
+  const runInterpretPhoto = async (imageBase64: string) => {
+    await runInterpretCore({ imageBase64 }, '');
+  };
+
+  const voice = useVoiceRecognition((finalText) => {
+    if (finalText.trim()) {
+      setText(finalText);
+      void runInterpret(finalText);
+    }
+  });
+
+  /** Confirms one event from a (possibly multi-event) batch, dropping it from the list — or leaving the screen once none remain. */
+  const confirmEventAt = async (index: number) => {
+    if (state.status !== 'interpretation') return;
+    const event = state.events[index];
+    if (!event) return;
+
+    await persistEvent(event);
+    setText('');
+
+    if (state.events.length === 1) {
+      goBackOrHome();
+    } else {
+      dispatch({ type: 'REMOVE_EVENT', index });
+    }
+  };
+
+  const confirmAllEvents = async () => {
+    if (state.status !== 'interpretation') return;
+    await Promise.all(state.events.map(persistEvent));
     setText('');
     goBackOrHome();
   };
 
-  const adjustQuantity = (index: number, delta: number) => {
-    if (state.status !== 'interpretation' || state.event.type !== 'food') return;
-    const meal = state.event.meal;
+  /** Drops one event without saving it — in photo mode with nothing left, there's no idle screen to fall back to, so leave instead. */
+  const removeEventAt = (index: number) => {
+    if (state.status === 'interpretation' && state.events.length === 1 && photoBase64) {
+      goBackOrHome();
+      return;
+    }
+    dispatch({ type: 'REMOVE_EVENT', index });
+  };
+
+  /** A quick-option answer to a clarifying question re-interprets just that one item and merges it back into its own slot — never replaces the rest of a multi-event batch. */
+  const runQuickOptionAt = async (index: number, option: string) => {
+    try {
+      const result = await interpretEvent.mutateAsync({ text: option, nowISO: new Date().toISOString() });
+      const replacement = result.events[0];
+      if (replacement?.type === 'food') {
+        dispatch({ type: 'UPDATE_MEAL', index, meal: replacement.meal });
+      }
+    } catch {
+      // A quick-option refinement failing isn't worth a full error screen — the card just keeps its current (still-editable) state.
+    }
+  };
+
+  const adjustQuantity = (eventIndex: number, itemIndex: number, delta: number) => {
+    if (state.status !== 'interpretation') return;
+    const event = state.events[eventIndex];
+    if (event?.type !== 'food') return;
+    const meal = event.meal;
     const items = [...meal.items];
-    const item = items[index];
+    const item = items[itemIndex];
     const step = item.unit === 'g' || item.unit === 'ml' ? delta * 10 : delta;
     const minQty = item.unit === 'g' || item.unit === 'ml' ? 10 : 1;
     const newQuantity = Math.max(minQty, item.quantity + step);
     const scale = newQuantity / item.quantity;
 
-    items[index] = {
+    items[itemIndex] = {
       ...item,
       quantity: newQuantity,
       nutrition: {
@@ -153,45 +214,38 @@ export default function LogMealScreen() {
 
     dispatch({
       type: 'UPDATE_MEAL',
+      index: eventIndex,
       meal: { ...meal, items, estimatedTotals: sumNutrition(items.map((i) => i.nutrition)) },
     });
   };
 
-  const adjustCalories = (index: number, calories: number) => {
-    if (state.status !== 'interpretation' || state.event.type !== 'food') return;
-    const meal = state.event.meal;
+  const adjustCalories = (eventIndex: number, itemIndex: number, calories: number) => {
+    if (state.status !== 'interpretation') return;
+    const event = state.events[eventIndex];
+    if (event?.type !== 'food') return;
+    const meal = event.meal;
     const items = [...meal.items];
-    items[index] = { ...items[index], nutrition: scaleNutritionToCalories(items[index].nutrition, calories) };
+    items[itemIndex] = { ...items[itemIndex], nutrition: scaleNutritionToCalories(items[itemIndex].nutrition, calories) };
 
     dispatch({
       type: 'UPDATE_MEAL',
+      index: eventIndex,
       meal: { ...meal, items, estimatedTotals: sumNutrition(items.map((i) => i.nutrition)) },
     });
   };
 
-  const removeItem = (index: number) => {
-    if (state.status !== 'interpretation' || state.event.type !== 'food') return;
-    const meal = state.event.meal;
-    const items = meal.items.filter((_, i) => i !== index);
+  const removeItem = (eventIndex: number, itemIndex: number) => {
+    if (state.status !== 'interpretation') return;
+    const event = state.events[eventIndex];
+    if (event?.type !== 'food') return;
+    const meal = event.meal;
+    const items = meal.items.filter((_, i) => i !== itemIndex);
     if (items.length === 0) return;
     dispatch({
       type: 'UPDATE_MEAL',
+      index: eventIndex,
       meal: { ...meal, items, estimatedTotals: sumNutrition(items.map((i) => i.nutrition)) },
     });
-  };
-
-  const retype = () => {
-    // In photo mode, "retype" (from the interpretation card's Retype button)
-    // has nothing to fall back to — resetting to 'idle' would show the
-    // voice-recording UI, which would be a confusing bait-and-switch after
-    // starting from a photo. Send them back to Home to tap the camera
-    // button again instead.
-    if (photoBase64) {
-      goBackOrHome();
-      return;
-    }
-    voice.stop();
-    dispatch({ type: 'RESET' });
   };
 
   const startRecording = async () => {
@@ -238,8 +292,7 @@ export default function LogMealScreen() {
     );
   }
 
-  const foodEvent = state.status === 'interpretation' && state.event.type === 'food' ? state.event : null;
-  const exerciseEvent = state.status === 'interpretation' && state.event.type === 'exercise' ? state.event : null;
+  const events = state.status === 'interpretation' ? state.events : [];
 
   return (
     <KeyboardAvoidingView
@@ -259,13 +312,14 @@ export default function LogMealScreen() {
             </Pressable>
             <Text variant="subtitle">Tell me what you ate or did</Text>
             <Text variant="caption" className="text-center">
-              Tap to speak, or type it below.
+              Tap to speak, or type it below. You can log a whole day at once — "breakfast was
+              X, lunch was Y".
             </Text>
             <TextField
               label="What did you eat or do?"
               value={text}
               onChangeText={setText}
-              placeholder="e.g. I had two chapatis and dal, or I walked 1000 steps"
+              placeholder="e.g. Breakfast was milk and a banana, lunch was 3 chapatis and rice"
               multiline
               className="w-full"
             />
@@ -301,12 +355,12 @@ export default function LogMealScreen() {
             <Button label="Cancel" variant="ghost" onPress={cancelRecording} />
 
             <View className="mt-2 w-full gap-2">
-              <Text variant="caption">Or type it instead:</Text>
+              <Text variant="caption">Or type it instead — a whole day at once works too:</Text>
               <TextField
                 label="What did you eat or do?"
                 value={text}
                 onChangeText={setText}
-                placeholder="e.g. I had two chapatis and dal, or I walked 1000 steps"
+                placeholder="e.g. Breakfast was milk and a banana, lunch was 3 chapatis and rice"
                 multiline
                 className="w-full"
               />
@@ -327,27 +381,54 @@ export default function LogMealScreen() {
           </View>
         ) : null}
 
-        {foodEvent ? (
-          <InterpretationCard
-            meal={foodEvent.meal}
-            isSubmitting={isSubmitting}
-            onConfirm={() => persistMeal(foodEvent.meal)}
-            onAdjustQuantity={adjustQuantity}
-            onAdjustCalories={adjustCalories}
-            onRemoveItem={removeItem}
-            onQuickOption={(option) => runInterpret(option)}
-            onRetype={retype}
-          />
+        {events.length > 1 ? (
+          <View className="flex-row items-center justify-between rounded-xl bg-primary-50 px-4 py-3 dark:bg-primary-950">
+            <Text variant="caption">Found {events.length} things to log — review each, or confirm them all.</Text>
+            <Button label="Confirm all" onPress={confirmAllEvents} loading={isSubmitting} />
+          </View>
         ) : null}
 
-        {exerciseEvent ? (
-          <ActivityInterpretationCard
-            activity={exerciseEvent.activity}
-            isSubmitting={isSubmitting}
-            onConfirm={() => persistActivity(exerciseEvent.activity)}
-            onRetype={retype}
-          />
-        ) : null}
+        {events.map((event, index) => (
+          <View key={index} className="gap-1.5">
+            {events.length > 1 ? (
+              <View className="flex-row items-center justify-between px-1">
+                <Text variant="caption" className="font-medium capitalize">
+                  {eventEmoji(event)} {eventLabel(event)}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove this entry"
+                  onPress={() => removeEventAt(index)}
+                  className="h-7 w-7 items-center justify-center rounded-full"
+                >
+                  <Text variant="body" className="text-red-500">
+                    ×
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {event.type === 'food' ? (
+              <InterpretationCard
+                meal={event.meal}
+                isSubmitting={isSubmitting}
+                onConfirm={() => confirmEventAt(index)}
+                onAdjustQuantity={(itemIndex, delta) => adjustQuantity(index, itemIndex, delta)}
+                onAdjustCalories={(itemIndex, calories) => adjustCalories(index, itemIndex, calories)}
+                onRemoveItem={(itemIndex) => removeItem(index, itemIndex)}
+                onQuickOption={(option) => runQuickOptionAt(index, option)}
+                onRetype={() => removeEventAt(index)}
+              />
+            ) : (
+              <ActivityInterpretationCard
+                activity={event.activity}
+                isSubmitting={isSubmitting}
+                onConfirm={() => confirmEventAt(index)}
+                onRetype={() => removeEventAt(index)}
+              />
+            )}
+          </View>
+        ))}
 
         {state.status === 'error' ? (
           <View className="gap-3">
@@ -362,7 +443,7 @@ export default function LogMealScreen() {
             ) : (
               <>
                 <Button label="Try again" onPress={() => runInterpret(state.retryText ?? text)} />
-                <Button label="Edit text" variant="ghost" onPress={retype} />
+                <Button label="Edit text" variant="ghost" onPress={() => dispatch({ type: 'RESET' })} />
               </>
             )}
           </View>

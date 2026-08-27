@@ -98,7 +98,7 @@ describe('GET /insights/today', () => {
       headers: { authorization: `Bearer ${accessToken}` },
       payload: { text: 'I ate a banana.', nowISO: yesterday },
     });
-    const { meal } = interpretRes.json().event;
+    const { meal } = interpretRes.json().events[0];
     await app.inject({
       method: 'POST',
       url: '/api/v1/food/entries',
