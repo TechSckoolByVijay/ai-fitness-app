@@ -119,4 +119,46 @@ describe('GET /insights/today', () => {
     // this should read as favorable for a weight-loss goal.
     expect(yesterdayCard.tone).toBe('positive');
   });
+
+  it('surfaces a meal-protein-pattern card once enough days show a consistent lunch/dinner gap', async () => {
+    const accessToken = await registerAndOnboard('insights-mealpattern', 'maintain_weight');
+
+    function nutritionItem(name: string, proteinG: number) {
+      return {
+        name,
+        quantity: 1,
+        unit: 'serving',
+        confidence: 1,
+        nutrition: { calories: 200, proteinG, carbsG: 10, fatG: 5, source: 'custom', isEstimate: false },
+      };
+    }
+
+    for (let daysAgo = 1; daysAgo <= 3; daysAgo++) {
+      const loggedAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/food/entries',
+        headers: { authorization: `Bearer ${accessToken}` },
+        payload: { mealType: 'lunch', loggedAt, items: [nutritionItem('chicken breast', 45)] },
+      });
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/food/entries',
+        headers: { authorization: `Bearer ${accessToken}` },
+        payload: { mealType: 'dinner', loggedAt, items: [nutritionItem('rice and vegetables', 8)] },
+      });
+    }
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/insights/today',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+
+    const { cards } = response.json();
+    const mealCard = cards.find((c: { id: string }) => c.id === 'meal-protein-pattern');
+    expect(mealCard).toBeTruthy();
+    expect(mealCard.message).toContain('lunch');
+    expect(mealCard.message).toContain('dinner');
+  });
 });

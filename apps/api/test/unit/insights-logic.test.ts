@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { classifyCalorieAlignment } from '@fitness-app/shared';
-import { buildStreakCard, buildYesterdayCard } from '../../src/modules/insights/insights-logic';
+import { buildMealProteinCard, buildStreakCard, buildYesterdayCard } from '../../src/modules/insights/insights-logic';
 
 describe('classifyCalorieAlignment', () => {
   it('treats a deficit as favorable for lose_weight', () => {
@@ -125,5 +125,38 @@ describe('buildStreakCard', () => {
   it('treats a zero/missing day as breaking the streak', () => {
     const card = buildStreakCard({ goalType: 'lose_weight', calorieTarget: 2000, dailyCalories: [1800, 0, 1800] });
     expect(card).toBeNull();
+  });
+});
+
+describe('buildMealProteinCard', () => {
+  it('returns null with fewer than two comparable meal types', () => {
+    expect(buildMealProteinCard({ avgProteinByMeal: { lunch: 40 } })).toBeNull();
+  });
+
+  it('returns null when the gap is small in absolute grams', () => {
+    const card = buildMealProteinCard({ avgProteinByMeal: { lunch: 22, dinner: 18 } });
+    expect(card).toBeNull();
+  });
+
+  it('returns null when the gap is a small fraction of the stronger meal', () => {
+    // 40g vs 30g: 10g gap clears the absolute floor but is only 25% of 40 — below the 35% threshold.
+    const card = buildMealProteinCard({ avgProteinByMeal: { lunch: 40, dinner: 30 } });
+    expect(card).toBeNull();
+  });
+
+  it('nudges toward the weaker meal when the gap is large both absolutely and proportionally', () => {
+    const card = buildMealProteinCard({ avgProteinByMeal: { lunch: 45, dinner: 15 } });
+    expect(card?.tone).toBe('nudge');
+    expect(card?.message).toContain('lunch');
+    expect(card?.message).toContain('dinner');
+    expect(card?.message).toMatch(/45g/);
+    expect(card?.message).toMatch(/15g/);
+  });
+
+  it('compares the strongest and weakest of three meal types, ignoring the middle one', () => {
+    const card = buildMealProteinCard({ avgProteinByMeal: { breakfast: 10, lunch: 30, dinner: 50 } });
+    expect(card?.message).toContain('dinner');
+    expect(card?.message).toContain('breakfast');
+    expect(card?.message).not.toMatch(/lunch/);
   });
 });
