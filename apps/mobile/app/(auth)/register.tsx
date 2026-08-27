@@ -38,7 +38,13 @@ export default function RegisterScreen() {
         </View>
 
         <View className="gap-4">
-          <TextField label="Name" value={name} onChangeText={setName} textContentType="name" />
+          <TextField
+            label="Name"
+            value={name}
+            onChangeText={setName}
+            textContentType="name"
+            autoComplete="name"
+          />
           <TextField
             label="Email"
             value={email}
@@ -46,6 +52,7 @@ export default function RegisterScreen() {
             autoCapitalize="none"
             keyboardType="email-address"
             textContentType="emailAddress"
+            autoComplete="email"
           />
           <TextField
             label="Password"
@@ -53,6 +60,7 @@ export default function RegisterScreen() {
             onChangeText={setPassword}
             secureTextEntry
             textContentType="newPassword"
+            autoComplete="password-new"
             error={passwordTooShort ? 'Password must be at least 8 characters.' : undefined}
           />
 

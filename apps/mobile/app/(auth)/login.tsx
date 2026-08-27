@@ -42,6 +42,7 @@ export default function LoginScreen() {
             autoCapitalize="none"
             keyboardType="email-address"
             textContentType="emailAddress"
+            autoComplete="email"
           />
           <TextField
             label="Password"
@@ -49,6 +50,7 @@ export default function LoginScreen() {
             onChangeText={setPassword}
             secureTextEntry
             textContentType="password"
+            autoComplete="password"
           />
 
           {errorMessage ? (
