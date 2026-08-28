@@ -209,4 +209,98 @@ describe('coach chat', () => {
     const response = await app.inject({ method: 'DELETE', url: '/api/v1/coach/conversation' });
     expect(response.statusCode).toBe(401);
   });
+
+  it('records a dislike on a suggestion, surfaces it on GET, and feeds it into future coach context', async () => {
+    const token = await registerAndGetToken(app, 'coach-react');
+
+    const sendRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/coach/messages',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { message: 'Suggest a snack', localHour: 17 },
+    });
+    const { assistantMessage } = sendRes.json();
+
+    const reactRes = await app.inject({
+      method: 'POST',
+      url: `/api/v1/coach/messages/${assistantMessage.id}/reaction`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { reaction: 'disliked' },
+    });
+    expect(reactRes.statusCode).toBe(204);
+
+    const getRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/coach/conversation',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const messages = getRes.json().conversation.messages;
+    const reacted = messages.find((m: { id: string }) => m.id === assistantMessage.id);
+    expect(reacted.reaction).toBe('disliked');
+
+    // The dislike must reach the next prompt's context so the model stops
+    // suggesting it — that's the entire point of collecting the feedback.
+    const meRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const userId = meRes.json().id;
+    const context = await buildCoachContext(app.prisma, userId, { localHour: 17 });
+    expect(context.dislikedSuggestions.length).toBe(1);
+    expect(context.localHour).toBe(17);
+  });
+
+  it('clearing a reaction removes it', async () => {
+    const token = await registerAndGetToken(app, 'coach-react-clear');
+    const sendRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/coach/messages',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { message: 'Suggest a snack' },
+    });
+    const { assistantMessage } = sendRes.json();
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/coach/messages/${assistantMessage.id}/reaction`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { reaction: 'liked' },
+    });
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/coach/messages/${assistantMessage.id}/reaction`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { reaction: null },
+    });
+
+    const getRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/coach/conversation',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const reacted = getRes.json().conversation.messages.find((m: { id: string }) => m.id === assistantMessage.id);
+    expect(reacted.reaction).toBeNull();
+  });
+
+  it("rejects reacting to another user's message", async () => {
+    const tokenA = await registerAndGetToken(app, 'coach-react-a');
+    const tokenB = await registerAndGetToken(app, 'coach-react-b');
+
+    const sendRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/coach/messages',
+      headers: { authorization: `Bearer ${tokenA}` },
+      payload: { message: 'Suggest a snack' },
+    });
+    const { assistantMessage } = sendRes.json();
+
+    const reactRes = await app.inject({
+      method: 'POST',
+      url: `/api/v1/coach/messages/${assistantMessage.id}/reaction`,
+      headers: { authorization: `Bearer ${tokenB}` },
+      payload: { reaction: 'liked' },
+    });
+    expect(reactRes.statusCode).toBe(404);
+  });
 });

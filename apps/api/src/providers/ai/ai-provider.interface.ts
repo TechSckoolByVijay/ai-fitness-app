@@ -20,6 +20,14 @@ export interface CoachContextInput {
   healthConditions: string[];
   frequentFoods: string[];
   todaysMealsSummary: string[];
+  /** The user's primary goal (lose_weight, gain_muscle, ...) — suggestions must fit it, e.g. no ghee-heavy dishes for weight loss. */
+  primaryGoal: string | null;
+  /** The user's local hour (0-23), sent by the client — the server clock is UTC and useless for "is it breakfast time". Null if the client didn't send it. */
+  localHour: number | null;
+  /** Snippets of previous coach suggestions the user explicitly disliked — never suggest these or close variants again. */
+  dislikedSuggestions: string[];
+  /** Snippets of previous coach suggestions the user explicitly liked — more like these is welcome. */
+  likedSuggestions: string[];
 }
 
 export interface CoachChatMessage {

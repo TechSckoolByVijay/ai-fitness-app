@@ -1,5 +1,6 @@
 import type {
   CoachConversationResponse,
+  CoachReaction,
   SendCoachMessageRequest,
   SendCoachMessageResponse,
 } from '@fitness-app/shared';
@@ -15,4 +16,8 @@ export function sendCoachMessage(input: SendCoachMessageRequest) {
 
 export function clearCoachConversation() {
   return apiRequest<void>('/coach/conversation', { method: 'DELETE' });
+}
+
+export function reactToCoachMessage(messageId: string, reaction: CoachReaction | null) {
+  return apiRequest<void>(`/coach/messages/${messageId}/reaction`, { method: 'POST', body: { reaction } });
 }

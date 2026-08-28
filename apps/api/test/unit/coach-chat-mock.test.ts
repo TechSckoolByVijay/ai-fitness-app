@@ -15,6 +15,10 @@ const BASE_CONTEXT: CoachContextInput = {
   healthConditions: [],
   frequentFoods: ['chapati', 'dal'],
   todaysMealsSummary: ['lunch: chapati, dal'],
+  primaryGoal: 'lose_weight',
+  localHour: null,
+  dislikedSuggestions: [],
+  likedSuggestions: [],
 };
 
 describe('mockCoachReply', () => {

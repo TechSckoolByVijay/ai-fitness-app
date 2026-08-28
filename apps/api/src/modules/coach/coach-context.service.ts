@@ -52,12 +52,20 @@ export function computeRemainingCalories(
   return round1(calorieTarget - caloriesConsumedToday + activeCaloriesBurnedToday);
 }
 
-export async function buildCoachContext(prisma: PrismaClient, userId: string): Promise<CoachContextInput> {
+const MAX_REACTION_SNIPPETS = 6;
+/** Enough of a suggestion message to identify the dish without bloating the prompt. */
+const REACTION_SNIPPET_LENGTH = 120;
+
+export async function buildCoachContext(
+  prisma: PrismaClient,
+  userId: string,
+  options: { localHour?: number } = {},
+): Promise<CoachContextInput> {
   const today = toDateOnly(new Date());
   const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
   const lookbackStart = new Date(today.getTime() - FREQUENT_FOODS_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
 
-  const [profile, summary, dietPreference, allergies, healthConditions, todaysEntries, recentEntries] =
+  const [profile, summary, dietPreference, allergies, healthConditions, todaysEntries, recentEntries, primaryGoal, reactions] =
     await Promise.all([
       prisma.profile.findUnique({ where: { userId } }),
       prisma.dailySummary.findUnique({ where: { userId_date: { userId, date: today } } }),
@@ -73,7 +81,25 @@ export async function buildCoachContext(prisma: PrismaClient, userId: string): P
         where: { userId, loggedAt: { gte: lookbackStart, lt: tomorrow } },
         include: { items: true },
       }),
+      prisma.goal.findFirst({ where: { userId, isPrimary: true } }),
+      // The reacted-to suggestion text is copied into `notes` at reaction
+      // time, so recalling taste history is a single indexed read — no join
+      // back to AiMessage needed here.
+      prisma.userFeedback.findMany({
+        where: { userId, subjectType: 'coach_message' },
+        orderBy: { createdAt: 'desc' },
+        take: MAX_REACTION_SNIPPETS * 2,
+      }),
     ]);
+
+  const dislikedSuggestions = reactions
+    .filter((r) => r.feedbackType === 'disliked' && r.notes)
+    .slice(0, MAX_REACTION_SNIPPETS)
+    .map((r) => (r.notes as string).slice(0, REACTION_SNIPPET_LENGTH));
+  const likedSuggestions = reactions
+    .filter((r) => r.feedbackType === 'liked' && r.notes)
+    .slice(0, MAX_REACTION_SNIPPETS)
+    .map((r) => (r.notes as string).slice(0, REACTION_SNIPPET_LENGTH));
 
   const calorieTarget = profile?.calorieTarget ?? null;
   const caloriesConsumedToday = summary ? Number(summary.caloriesConsumed) : 0;
@@ -95,5 +121,9 @@ export async function buildCoachContext(prisma: PrismaClient, userId: string): P
       .map((c) => (c.type === 'other' ? (c.otherText ?? 'other') : c.type)),
     frequentFoods: computeFrequentFoods(recentEntries),
     todaysMealsSummary: summarizeTodaysMeals(todaysEntries),
+    primaryGoal: primaryGoal?.type ?? null,
+    localHour: options.localHour ?? null,
+    dislikedSuggestions,
+    likedSuggestions,
   };
 }

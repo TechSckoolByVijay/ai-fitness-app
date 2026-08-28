@@ -51,7 +51,14 @@ export async function buildApp(env: Env) {
   // backstop against a runaway client or scripted abuse. Auth routes get a
   // much stricter override (see auth.routes.ts) since they're the highest-
   // value target once this is reachable from the public internet.
-  await app.register(rateLimit, { max: 200, timeWindow: '1 minute' });
+  await app.register(rateLimit, {
+    max: 200,
+    timeWindow: '1 minute',
+    // Integration tests register many users per file from one "IP" and
+    // would trip the strict auth limit; the limiter itself stays exercised
+    // in dev/prod, where NODE_ENV is never 'test'.
+    allowList: () => env.NODE_ENV === 'test',
+  });
   await app.register(prismaPlugin);
   await app.register(authPlugin, { env });
   await app.register(providersPlugin, { env });

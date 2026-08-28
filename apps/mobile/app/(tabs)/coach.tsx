@@ -8,7 +8,7 @@ import { EmptyState } from '../../src/components/ui/EmptyState';
 import { Text } from '../../src/components/ui/Text';
 import { TextField } from '../../src/components/ui/TextField';
 import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
-import { useClearCoachConversation, useCoachConversation, useSendCoachMessage } from '../../src/hooks/useCoach';
+import { useClearCoachConversation, useCoachConversation, useReactToCoachMessage, useSendCoachMessage } from '../../src/hooks/useCoach';
 import { useVoiceRecognition } from '../../src/hooks/useVoiceRecognition';
 import { getContextualCoachPrompts } from '../../src/utils/coachSuggestions';
 
@@ -16,6 +16,7 @@ export default function CoachScreen() {
   const conversation = useCoachConversation();
   const sendMessage = useSendCoachMessage();
   const clearConversation = useClearCoachConversation();
+  const reactToMessage = useReactToCoachMessage();
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -99,7 +100,11 @@ export default function CoachScreen() {
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
         >
           {messages.map((message) => (
-            <ChatBubble key={message.id} message={message} />
+            <ChatBubble
+              key={message.id}
+              message={message}
+              onReact={(messageId, reaction) => reactToMessage.mutate({ messageId, reaction })}
+            />
           ))}
         </ScrollView>
       )}

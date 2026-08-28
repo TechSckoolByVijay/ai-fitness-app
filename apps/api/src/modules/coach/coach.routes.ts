@@ -1,10 +1,12 @@
 import {
   CoachConversationResponseSchema,
+  CoachMessageReactionRequestSchema,
   SendCoachMessageRequestSchema,
   SendCoachMessageResponseSchema,
 } from '@fitness-app/shared';
+import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
-import { clearConversation, getCurrentConversation, sendCoachMessage } from './coach-chat.service';
+import { clearConversation, getCurrentConversation, sendCoachMessage, setMessageReaction } from './coach-chat.service';
 
 export async function coachRoutes(app: FastifyInstance) {
   app.get('/coach/conversation', { preHandler: app.authenticate }, async (request, reply) => {
@@ -23,7 +25,15 @@ export async function coachRoutes(app: FastifyInstance) {
       { prisma: app.prisma, aiProvider: app.aiProvider },
       request.user.sub,
       body.message,
+      body.localHour,
     );
     reply.send(SendCoachMessageResponseSchema.parse(result));
+  });
+
+  app.post('/coach/messages/:messageId/reaction', { preHandler: app.authenticate }, async (request, reply) => {
+    const { messageId } = z.object({ messageId: z.string().uuid() }).parse(request.params);
+    const body = CoachMessageReactionRequestSchema.parse(request.body);
+    await setMessageReaction(app.prisma, request.user.sub, messageId, body.reaction);
+    reply.status(204).send();
   });
 }

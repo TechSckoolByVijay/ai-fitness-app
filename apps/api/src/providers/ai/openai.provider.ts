@@ -151,9 +151,57 @@ function buildCoachSystemPrompt(context: CoachContextInput): string {
       ? `They have approximately ${Math.round(context.remainingCalories)} kcal remaining in today's budget (their ${context.calorieTarget} kcal target, minus ${Math.round(context.caloriesConsumedToday)} kcal already eaten, plus ${Math.round(context.activeCaloriesBurnedToday)} kcal burned through activity).`
       : "They haven't set a calorie target yet, so estimate conservatively and mention that setting a target would help.";
 
+  // Spelled out because the model's default (Western) reading of
+  // "vegetarian" includes eggs — this app's users largely follow the Indian
+  // convention where it does not, and the enum has a separate "eggetarian"
+  // for egg-eaters, so "vegetarian" here is unambiguous.
+  const DIET_DEFINITIONS: Record<string, string> = {
+    vegetarian:
+      'VEGETARIAN (Indian convention): NO meat, NO fish, NO eggs in any form — an omelette, egg bhurji, or mayonnaise is NOT vegetarian. Dairy (milk, curd, paneer, ghee) is fine.',
+    eggetarian: 'EGGETARIAN: vegetarian plus eggs. No meat, no fish.',
+    vegan: 'VEGAN: no meat, fish, eggs, dairy (no milk/curd/paneer/ghee), or honey.',
+    non_vegetarian: 'NON-VEGETARIAN: no diet-based restrictions.',
+  };
   const dietLine = context.dietType
-    ? `Diet: ${context.dietType}${context.dietOtherText ? ` (${context.dietOtherText})` : ''}.`
+    ? `Diet — HARD CONSTRAINT: ${DIET_DEFINITIONS[context.dietType] ?? context.dietType}${context.dietOtherText ? ` (user's own words: ${context.dietOtherText})` : ''}`
     : 'No stated diet preference.';
+
+  const goalLine = context.primaryGoal
+    ? {
+        lose_weight:
+          "Primary goal: WEIGHT LOSS. Prefer light cooking — minimal butter/ghee/oil, no deep-fried dishes, high-satiety options (protein + fiber). Never suggest something calorie-dense when a lighter version of the same craving exists.",
+        gain_muscle:
+          'Primary goal: MUSCLE GAIN. Prioritize protein-dense suggestions and mention the approximate protein content.',
+        maintain_weight: 'Primary goal: maintain weight. Balanced suggestions within their calorie budget.',
+        improve_fitness: 'Primary goal: improve fitness. Balanced, energizing suggestions that support activity.',
+        improve_health: 'Primary goal: improve overall health. Favor whole foods, less fried/processed.',
+        improve_sleep: 'Primary goal: better sleep. Avoid suggesting caffeine late in the day; keep dinners light.',
+        healthier_eating: 'Primary goal: eat healthier. Favor whole foods and home-style cooking over processed.',
+      }[context.primaryGoal] ?? `Primary goal: ${context.primaryGoal}.`
+    : 'No primary goal set.';
+
+  const timeLine =
+    context.localHour !== null
+      ? (() => {
+          const h = context.localHour;
+          if (h >= 5 && h < 11) return `It is morning (${h}:00) where the user is — suggest breakfast-appropriate dishes.`;
+          if (h >= 11 && h < 15) return `It is midday (${h}:00) where the user is — suggest lunch-appropriate dishes.`;
+          if (h >= 15 && h < 19) return `It is late afternoon (${h}:00) where the user is — suggest a light snack, not a full meal.`;
+          if (h >= 19 && h < 23) return `It is evening (${h}:00) where the user is — suggest dinner-appropriate dishes.`;
+          return `It is late night (${h}:00) where the user is — suggest only something very light, or gently suggest resting instead.`;
+        })()
+      : 'Time of day unknown — ask or keep suggestions meal-neutral.';
+
+  const tasteLines = [
+    context.dislikedSuggestions.length
+      ? `The user explicitly DISLIKED these earlier suggestions — do not suggest them or close variants again: ${context.dislikedSuggestions.map((s) => `"${s}"`).join('; ')}.`
+      : '',
+    context.likedSuggestions.length
+      ? `The user explicitly LIKED these earlier suggestions — similar dishes are welcome: ${context.likedSuggestions.map((s) => `"${s}"`).join('; ')}.`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   const allergyLine = context.allergies.length
     ? `CRITICAL — the user has these allergies/restrictions, you must NEVER suggest a dish containing them: ${context.allergies.join(', ')}.`
@@ -175,13 +223,17 @@ function buildCoachSystemPrompt(context: CoachContextInput): string {
 
 ${budgetLine}
 ${dietLine}
+${goalLine}
+${timeLine}
 ${allergyLine}
 ${healthConditionLine}
 ${frequentLine}
 ${todaysMealsLine}
+${tasteLines}
 
 Guidelines:
-- Never suggest a dish that violates their diet type or contains a listed allergen — this is a hard safety constraint, not a preference.
+- Never suggest a dish that violates the diet definition above or contains a listed allergen — this is a hard safety constraint, not a preference. Re-check every suggestion against the diet definition before answering.
+- Match the cuisine of what the user already eats: if their frequent foods are chapati, dal, rice, and paneer, suggest Indian home-style dishes by default — not Western dishes they'd never cook. Suggest something outside their usual cuisine only if they ask for variety.
 - When suggesting a dish, propose ONE specific dish by name (not a list), keep it realistic for their remaining calorie budget, and briefly say why it fits. Keep replies to a few sentences unless asked for a recipe.
 - If they ask for a recipe or steps for a dish you (or they) mentioned, give a clear numbered list of steps.
 - Keep a warm, encouraging tone. Never present calorie/macro estimates as exact — they're estimates.
