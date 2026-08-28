@@ -48,14 +48,20 @@ export async function getTodayInsights(prisma: PrismaClient, userId: string): Pr
 
   const mealPatternStart = new Date(today.getTime() - MEAL_PATTERN_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
 
-  const [primaryGoal, summaries, avgProteinByMeal] = await Promise.all([
+  const [primaryGoal, summaries, avgProteinByMeal, yesterdayEntries] = await Promise.all([
     prisma.goal.findFirst({ where: { userId, isPrimary: true } }),
     prisma.dailySummary.findMany({
       where: { userId, date: { gte: lookbackStart, lt: today } },
       orderBy: { date: 'asc' },
     }),
     getAvgProteinByMeal(prisma, userId, mealPatternStart),
+    prisma.foodEntry.findMany({
+      where: { userId, loggedAt: { gte: yesterday, lt: today }, status: 'confirmed' },
+      select: { mealType: true },
+      distinct: ['mealType'],
+    }),
   ]);
+  const yesterdayMealTypes = yesterdayEntries.map((e) => e.mealType as MealType);
 
   const profile = await prisma.profile.findUnique({ where: { userId } });
   const calorieTarget = profile?.calorieTarget ?? null;
@@ -73,7 +79,7 @@ export async function getTodayInsights(prisma: PrismaClient, userId: string): Pr
   const yesterdayCalories = yesterdaySummary ? Number(yesterdaySummary.caloriesConsumed) : null;
 
   const cards = [
-    buildYesterdayCard({ goalType, calorieTarget, yesterdayCalories }),
+    buildYesterdayCard({ goalType, calorieTarget, yesterdayCalories, yesterdayMealTypes }),
     buildStreakCard({ goalType, calorieTarget, dailyCalories }),
     buildMealProteinCard({ avgProteinByMeal }),
   ].filter((card): card is NonNullable<typeof card> => card !== null);

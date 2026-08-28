@@ -48,12 +48,27 @@ export function buildMealProteinCard(params: {
   };
 }
 
+/**
+ * A logged total far below target almost never means the user genuinely ate
+ * that little — it means they didn't log everything (e.g. logged one banana
+ * and skipped lunch/dinner). Anything under half the target is treated as
+ * incomplete logging, NOT a real deficit, so we never congratulate someone
+ * on a "1,600 kcal deficit" that's really just missing data.
+ */
+export function isLikelyIncompleteDay(consumedCalories: number, calorieTarget: number): boolean {
+  return consumedCalories > 0 && consumedCalories < calorieTarget * 0.5;
+}
+
+const ALL_MAIN_MEALS: MealType[] = ['breakfast', 'lunch', 'dinner'];
+
 export function buildYesterdayCard(params: {
   goalType: GoalType | null;
   calorieTarget: number | null;
   yesterdayCalories: number | null;
+  /** Meal types actually logged yesterday — lets the incomplete-day nudge name what's missing. */
+  yesterdayMealTypes?: MealType[];
 }): InsightCard {
-  const { goalType, calorieTarget, yesterdayCalories } = params;
+  const { goalType, calorieTarget, yesterdayCalories, yesterdayMealTypes = [] } = params;
 
   if (!calorieTarget) {
     return {
@@ -69,6 +84,20 @@ export function buildYesterdayCard(params: {
       id: 'yesterday-no-log',
       emoji: '💪',
       message: "No meals logged yesterday — let's start today strong. Even one logged meal keeps your streak alive.",
+      tone: 'nudge',
+    };
+  }
+
+  if (isLikelyIncompleteDay(yesterdayCalories, calorieTarget)) {
+    const missingMeals = ALL_MAIN_MEALS.filter((meal) => !yesterdayMealTypes.includes(meal));
+    const missingText =
+      missingMeals.length > 0 && missingMeals.length < ALL_MAIN_MEALS.length
+        ? ` — looks like ${missingMeals.map((m) => MEAL_LABEL[m]).join(' and ')} never got logged`
+        : '';
+    return {
+      id: 'yesterday-incomplete',
+      emoji: '📝',
+      message: `Only ~${round(yesterdayCalories)} kcal logged yesterday${missingText}. Log every meal today so your numbers mean something!`,
       tone: 'nudge',
     };
   }
@@ -160,7 +189,15 @@ export function buildStreakCard(params: {
   let streak = 0;
   for (let i = dailyCalories.length - 1; i >= 0; i--) {
     const calories = dailyCalories[i];
-    if (!calories || classifyCalorieAlignment(goalType, calories, calorieTarget) !== 'favorable') break;
+    // An under-logged day can't count toward a goal streak — a huge "deficit"
+    // from missing data would otherwise read as a perfect day for lose_weight.
+    if (
+      !calories ||
+      isLikelyIncompleteDay(calories, calorieTarget) ||
+      classifyCalorieAlignment(goalType, calories, calorieTarget) !== 'favorable'
+    ) {
+      break;
+    }
     streak++;
   }
 

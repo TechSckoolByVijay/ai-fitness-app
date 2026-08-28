@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { classifyCalorieAlignment } from '@fitness-app/shared';
-import { buildMealProteinCard, buildStreakCard, buildYesterdayCard } from '../../src/modules/insights/insights-logic';
+import {
+  buildMealProteinCard,
+  buildStreakCard,
+  buildYesterdayCard,
+  isLikelyIncompleteDay,
+} from '../../src/modules/insights/insights-logic';
 
 describe('classifyCalorieAlignment', () => {
   it('treats a deficit as favorable for lose_weight', () => {
@@ -93,6 +98,57 @@ describe('buildYesterdayCard', () => {
   });
 });
 
+describe('isLikelyIncompleteDay', () => {
+  it('flags a tiny logged total as incomplete, not a real deficit', () => {
+    expect(isLikelyIncompleteDay(105, 2000)).toBe(true);
+  });
+
+  it('does not flag a plausible day just under target', () => {
+    expect(isLikelyIncompleteDay(1400, 2000)).toBe(false);
+  });
+
+  it('does not flag a fully unlogged day (that is the no-log case, handled separately)', () => {
+    expect(isLikelyIncompleteDay(0, 2000)).toBe(false);
+  });
+});
+
+describe('buildYesterdayCard — incomplete logging', () => {
+  it('never praises a huge "deficit" that is really just missing data', () => {
+    const card = buildYesterdayCard({
+      goalType: 'lose_weight',
+      calorieTarget: 1700,
+      yesterdayCalories: 105,
+      yesterdayMealTypes: ['breakfast'],
+    });
+    expect(card.id).toBe('yesterday-incomplete');
+    expect(card.tone).toBe('nudge');
+    expect(card.message).not.toMatch(/progress|under target/i);
+  });
+
+  it('names the specific meals that were never logged', () => {
+    const card = buildYesterdayCard({
+      goalType: 'lose_weight',
+      calorieTarget: 1700,
+      yesterdayCalories: 300,
+      yesterdayMealTypes: ['breakfast'],
+    });
+    expect(card.message).toContain('lunch');
+    expect(card.message).toContain('dinner');
+    expect(card.message).not.toContain('breakfast never');
+  });
+
+  it('still praises a genuine, plausible deficit', () => {
+    const card = buildYesterdayCard({
+      goalType: 'lose_weight',
+      calorieTarget: 2000,
+      yesterdayCalories: 1700,
+      yesterdayMealTypes: ['breakfast', 'lunch', 'dinner'],
+    });
+    expect(card.id).toBe('yesterday-calories');
+    expect(card.tone).toBe('positive');
+  });
+});
+
 describe('buildStreakCard', () => {
   it('returns null when there is no calorie target', () => {
     expect(buildStreakCard({ goalType: 'lose_weight', calorieTarget: null, dailyCalories: [1800, 1800] })).toBeNull();
@@ -124,6 +180,12 @@ describe('buildStreakCard', () => {
 
   it('treats a zero/missing day as breaking the streak', () => {
     const card = buildStreakCard({ goalType: 'lose_weight', calorieTarget: 2000, dailyCalories: [1800, 0, 1800] });
+    expect(card).toBeNull();
+  });
+
+  it('does not count a barely-logged day as a goal-hit day', () => {
+    // 100 kcal against a 2000 target is missing data, not a perfect deficit day.
+    const card = buildStreakCard({ goalType: 'lose_weight', calorieTarget: 2000, dailyCalories: [1800, 100, 1800] });
     expect(card).toBeNull();
   });
 });

@@ -113,11 +113,14 @@ describe('GET /insights/today', () => {
     });
 
     const { cards } = response.json();
-    const yesterdayCard = cards.find((c: { id: string }) => c.id === 'yesterday-calories');
+    // A single banana against a ~1700+ kcal target is NOT a real deficit —
+    // it's incomplete logging, and praising it ("you were 1600 kcal under
+    // target, great progress!") was actively misleading. The card must now
+    // read as an incomplete-day nudge instead, and name the missing meals.
+    const yesterdayCard = cards.find((c: { id: string }) => c.id === 'yesterday-incomplete');
     expect(yesterdayCard).toBeTruthy();
-    // A single banana is a huge deficit against any real calorie target, so
-    // this should read as favorable for a weight-loss goal.
-    expect(yesterdayCard.tone).toBe('positive');
+    expect(yesterdayCard.tone).toBe('nudge');
+    expect(yesterdayCard.message).not.toMatch(/progress|under target/i);
   });
 
   it('surfaces a meal-protein-pattern card once enough days show a consistent lunch/dinner gap', async () => {
