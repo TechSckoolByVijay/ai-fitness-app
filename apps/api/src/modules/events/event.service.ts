@@ -47,7 +47,12 @@ export async function interpretHealthEvents(
       imageBase64: input.imageBase64,
       nowISO: input.nowISO,
     });
-  } catch {
+  } catch (error) {
+    // The user only ever sees the generic friendly message below (never
+    // leak provider internals to the client) — but a silently swallowed
+    // cause here was undebuggable in production. Server-side only.
+    // eslint-disable-next-line no-console
+    console.error('[interpretHealthEvents] AI provider call failed:', error);
     throw new InterpretationFailedError();
   }
 
