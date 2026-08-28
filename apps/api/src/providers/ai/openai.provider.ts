@@ -7,6 +7,21 @@ import type { AIProvider, CoachChatMessage, CoachContextInput } from './ai-provi
 const REQUEST_TIMEOUT_MS = 15_000;
 
 /**
+ * Some models (reasoning-tier models such as o1/o3, and some Azure OpenAI
+ * deployments — encountered live on an Azure "gpt-5.6-luna" deployment)
+ * reject the `temperature` parameter outright with a 400. Rather than
+ * hardcode a model-name allowlist (fragile — Azure deployment names are
+ * arbitrary aliases chosen by whoever deployed them), retry once without it
+ * on exactly that error, and remember the outcome per provider instance so
+ * only the first request after startup pays for the extra round trip.
+ */
+function isUnsupportedTemperatureError(error: unknown): boolean {
+  return (
+    error instanceof OpenAI.APIError && error.status === 400 && /temperature/i.test(error.message) && /not supported/i.test(error.message)
+  );
+}
+
+/**
  * OpenAI's strict structured-output mode requires every object property to
  * be present in the schema (nullable instead of optional) — the shared
  * schemas use .optional() (the idiomatic shape for internal consumers), so
@@ -273,6 +288,22 @@ export class OpenAIProvider implements AIProvider {
     });
   }
 
+  // Sticky per-instance (the provider is a long-lived singleton) so only the
+  // very first call after startup pays for a failed-then-retried request.
+  private supportsTemperature = true;
+
+  private async callResponses<T>(build: (includeTemperature: boolean) => Promise<T>): Promise<T> {
+    try {
+      return await build(this.supportsTemperature);
+    } catch (error) {
+      if (this.supportsTemperature && isUnsupportedTemperatureError(error)) {
+        this.supportsTemperature = false;
+        return await build(false);
+      }
+      throw error;
+    }
+  }
+
   async extractHealthEvents({
     text,
     imageBase64,
@@ -299,18 +330,21 @@ export class OpenAIProvider implements AIProvider {
       userContent.push({ type: 'input_text', text: `Current date/time (ISO): ${nowISO}\n\nWhat the user said: "${text}"` });
     }
 
-    const response = await this.client.responses.parse({
-      model: this.model,
-      // Low temperature: this is closer to a classification/extraction task
-      // than open-ended generation — reduces run-to-run variance in
-      // confidence scoring and quantity/unit extraction.
-      temperature: 0.1,
-      input: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userContent },
-      ],
-      text: { format: zodTextFormat(OpenAIExtractionSchema, 'health_extraction') },
-    });
+    const response = await this.callResponses((includeTemperature) =>
+      this.client.responses.parse({
+        model: this.model,
+        // Low temperature: this is closer to a classification/extraction
+        // task than open-ended generation — reduces run-to-run variance in
+        // confidence scoring and quantity/unit extraction. Omitted
+        // automatically for models that reject it (see callResponses).
+        ...(includeTemperature ? { temperature: 0.1 } : {}),
+        input: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userContent },
+        ],
+        text: { format: zodTextFormat(OpenAIExtractionSchema, 'health_extraction') },
+      }),
+    );
 
     if (!response.output_parsed) {
       throw new Error('OpenAI returned no parsed output for health event extraction');
@@ -326,17 +360,20 @@ export class OpenAIProvider implements AIProvider {
     messages: CoachChatMessage[];
     context: CoachContextInput;
   }): Promise<string> {
-    const response = await this.client.responses.create({
-      model: this.model,
-      // Higher than extraction's 0.1 — this is open-ended conversational
-      // advice, not classification, so some variety in phrasing/suggestions
-      // is desirable rather than a bug.
-      temperature: 0.5,
-      input: [
-        { role: 'system', content: buildCoachSystemPrompt(context) },
-        ...messages.map((message) => ({ role: message.role, content: message.content })),
-      ],
-    });
+    const response = await this.callResponses((includeTemperature) =>
+      this.client.responses.create({
+        model: this.model,
+        // Higher than extraction's 0.1 — this is open-ended conversational
+        // advice, not classification, so some variety in phrasing/suggestions
+        // is desirable rather than a bug. Omitted automatically for models
+        // that reject it (see callResponses).
+        ...(includeTemperature ? { temperature: 0.5 } : {}),
+        input: [
+          { role: 'system', content: buildCoachSystemPrompt(context) },
+          ...messages.map((message) => ({ role: message.role, content: message.content })),
+        ],
+      }),
+    );
 
     return response.output_text?.trim() || "I'm not sure — could you tell me a bit more?";
   }
