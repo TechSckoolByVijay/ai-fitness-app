@@ -35,7 +35,7 @@ function ReminderRow({ label, enabled, preferredTime, onToggle, onCommitTime }: 
         <Text variant="body" className="font-medium">
           {label}
         </Text>
-        <Switch value={enabled} onValueChange={onToggle} trackColor={{ true: '#22b56d' }} />
+        <Switch value={enabled} onValueChange={onToggle} trackColor={{ true: '#12c06e' }} />
       </View>
       {enabled ? (
         <TextField

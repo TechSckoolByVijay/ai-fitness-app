@@ -49,8 +49,8 @@ export default function EditDietScreen() {
 
   if (!isAuthenticated || me.isLoading || !hydrated) {
     return (
-      <View className="flex-1 items-center justify-center bg-white dark:bg-surface-dark">
-        <ActivityIndicator size="large" color="#22b56d" />
+      <View className="flex-1 items-center justify-center bg-surface-light dark:bg-surface-dark">
+        <ActivityIndicator size="large" color="#12c06e" />
       </View>
     );
   }
@@ -58,7 +58,7 @@ export default function EditDietScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1 bg-white dark:bg-surface-dark"
+      className="flex-1 bg-surface-light dark:bg-surface-dark"
     >
       <ScrollView contentContainerClassName="gap-4 p-5">
         <View className="flex-row flex-wrap gap-2">

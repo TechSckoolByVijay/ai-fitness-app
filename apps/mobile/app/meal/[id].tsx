@@ -49,8 +49,8 @@ export default function MealDetailScreen() {
 
   if (!isAuthenticated) {
     return (
-      <View className="flex-1 items-center justify-center bg-white dark:bg-surface-dark">
-        <ActivityIndicator size="large" color="#22b56d" />
+      <View className="flex-1 items-center justify-center bg-surface-light dark:bg-surface-dark">
+        <ActivityIndicator size="large" color="#12c06e" />
       </View>
     );
   }
@@ -134,7 +134,7 @@ export default function MealDetailScreen() {
   const totals = sumNutrition(editableItems.map((i) => i.nutrition));
 
   return (
-    <ScrollView className="flex-1 bg-white dark:bg-surface-dark" contentContainerClassName="gap-4 p-5">
+    <ScrollView className="flex-1 bg-surface-light dark:bg-surface-dark" contentContainerClassName="gap-4 p-5">
       <Text variant="title" className="capitalize">
         {entry.mealType}
       </Text>

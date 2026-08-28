@@ -4,18 +4,20 @@ import { ActivityIndicator, View } from 'react-native';
 import { useMe } from '../../src/hooks/useMe';
 import { useAuthStore } from '../../src/state/authStore';
 
-const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  index: 'home-outline',
-  food: 'restaurant-outline',
-  progress: 'trending-up-outline',
-  coach: 'chatbubble-ellipses-outline',
-  profile: 'person-outline',
+// Filled icon when active, outline when not — the active tab should pop
+// (reference-app style), not just change tint.
+const ICONS: Record<string, { active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap }> = {
+  index: { active: 'home', inactive: 'home-outline' },
+  food: { active: 'restaurant', inactive: 'restaurant-outline' },
+  progress: { active: 'trending-up', inactive: 'trending-up-outline' },
+  coach: { active: 'chatbubble-ellipses', inactive: 'chatbubble-ellipses-outline' },
+  profile: { active: 'person', inactive: 'person-outline' },
 };
 
 function LoadingSplash() {
   return (
-    <View className="flex-1 items-center justify-center bg-white dark:bg-surface-dark">
-      <ActivityIndicator size="large" color="#22b56d" />
+    <View className="flex-1 items-center justify-center bg-surface-light dark:bg-surface-dark">
+      <ActivityIndicator size="large" color="#12c06e" />
     </View>
   );
 }
@@ -40,11 +42,14 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: '#159157',
+        tabBarActiveTintColor: '#0aa25c',
         tabBarInactiveTintColor: '#9ca3af',
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons name={ICONS[route.name] ?? 'ellipse-outline'} size={size} color={color} />
-        ),
+        tabBarLabelStyle: { fontWeight: '700', fontSize: 12 },
+        tabBarIcon: ({ color, size, focused }) => {
+          const icons = ICONS[route.name];
+          const name = icons ? (focused ? icons.active : icons.inactive) : 'ellipse-outline';
+          return <Ionicons name={name} size={size} color={color} />;
+        },
       })}
     >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />

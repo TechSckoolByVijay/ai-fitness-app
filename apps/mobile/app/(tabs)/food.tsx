@@ -43,7 +43,7 @@ export default function FoodScreen() {
   const groups = useMemo(() => groupByDay(data?.entries ?? []), [data]);
 
   return (
-    <View className="flex-1 bg-white dark:bg-surface-dark">
+    <View className="flex-1 bg-surface-light dark:bg-surface-dark">
       <ScrollView contentContainerClassName="gap-6 p-5" showsVerticalScrollIndicator={false}>
         <TopInsetSpacer />
         <Text variant="title">Food</Text>

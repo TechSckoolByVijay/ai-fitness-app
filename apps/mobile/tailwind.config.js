@@ -6,33 +6,38 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Calm / trustworthy / health-focused palette (spec section 38) —
-        // muted teal-green primary, soft neutrals, no medical-white or
-        // bodybuilding-red aesthetic.
+        // Vivid, energetic green — the app's single hero color. Everything
+        // else on screen stays soft/neutral so this one color (plus the
+        // amber/sky semantic accents used inline) carries the personality.
         primary: {
-          50: '#f0fdf6',
-          100: '#dbfbe9',
-          200: '#b8f5d3',
-          300: '#84e9b3',
-          400: '#4bd58c',
-          500: '#22b56d',
-          600: '#159157',
-          700: '#137447',
-          800: '#135c3a',
-          900: '#114c31',
+          50: '#ecfdf3',
+          100: '#d2fbe3',
+          200: '#a9f4ca',
+          300: '#71e8ac',
+          400: '#38d489',
+          500: '#12c06e',
+          600: '#0aa25c',
+          700: '#0b7f4b',
+          800: '#0e653e',
+          900: '#0d5334',
+          950: '#06301e',
         },
+        // Page background is deliberately NOT white — a soft gray-green so
+        // white cards visibly float on top of it (depth, like the reference
+        // fitness apps), instead of white-on-white flatness.
         surface: {
-          light: '#ffffff',
-          dark: '#121712',
+          light: '#f2f5f3',
+          dark: '#0c110d',
         },
         muted: {
-          light: '#f4f6f5',
-          dark: '#1c221d',
+          light: '#e9eeeb',
+          dark: '#1a231c',
         },
       },
       borderRadius: {
         xl: '1rem',
         '2xl': '1.5rem',
+        '3xl': '1.75rem',
       },
     },
   },

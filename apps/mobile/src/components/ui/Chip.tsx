@@ -7,21 +7,25 @@ interface ChipProps {
   onPress: () => void;
 }
 
+// Tinted pills that clearly look tappable (suggestion chips are a primary
+// interaction for non-technical users, not decoration).
 export function Chip({ label, selected, onPress }: ChipProps) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}
-      className={`rounded-full border px-4 py-2.5 ${
+      className={`rounded-full px-4 py-3 ${
         selected
-          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/40'
-          : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-muted-dark'
+          ? 'bg-primary-500'
+          : 'bg-primary-50 active:bg-primary-100 dark:bg-primary-900/40 dark:active:bg-primary-900/60'
       }`}
     >
       <Text
         variant="body"
-        className={selected ? 'font-medium text-primary-700 dark:text-primary-300' : ''}
+        className={
+          selected ? 'font-bold text-white' : 'font-semibold text-primary-700 dark:text-primary-300'
+        }
       >
         {label}
       </Text>

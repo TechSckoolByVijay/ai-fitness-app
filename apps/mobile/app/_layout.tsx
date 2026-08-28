@@ -72,8 +72,8 @@ export default function RootLayout() {
 
   if (status === 'loading') {
     return (
-      <View className="flex-1 items-center justify-center bg-white dark:bg-surface-dark">
-        <ActivityIndicator size="large" color="#22b56d" />
+      <View className="flex-1 items-center justify-center bg-surface-light dark:bg-surface-dark">
+        <ActivityIndicator size="large" color="#12c06e" />
       </View>
     );
   }

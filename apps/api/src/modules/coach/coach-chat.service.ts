@@ -29,6 +29,11 @@ export async function getCurrentConversation(
   return { id: conversation.id, messages: conversation.messages.map(toMessageDto) };
 }
 
+/** Clears the user's coach chat history. Messages cascade-delete with the conversation; the next message simply starts a fresh one. */
+export async function clearConversation(prisma: PrismaClient, userId: string): Promise<void> {
+  await prisma.aiConversation.deleteMany({ where: { userId } });
+}
+
 export async function sendCoachMessage(
   deps: { prisma: PrismaClient; aiProvider: AIProvider },
   userId: string,

@@ -863,3 +863,39 @@ logs 3 days of high/low-protein lunch/dinner entries and confirms the card
 appears). The reminder + tour changes are JS-only and shipped via `eas
 update` (no native dependency, no rebuild needed); the insights change
 shipped via the normal GitHub Actions → Azure Container Apps pipeline.
+
+## Full visual revamp (2026-08-28) — "make it exciting, not a research tool"
+
+User feedback (with competitor screenshots as the reference): the app felt
+dull and clinical — small fonts, flat white-on-white, no color, features
+like the calorie slider going unnoticed. Revamped the entire visual system
+in one pass, OTA-shippable (no new native deps — deliberately avoided
+react-native-svg rings since that would force a rebuild + reinstall):
+
+- **Tokens** (`tailwind.config.js`): vivid green primary (#12c06e family),
+  soft gray-green page background (`surface.light #f2f5f3`) so white cards
+  visibly float; hardcoded old-green hexes swept app-wide.
+- **Type scale up** (`Text.tsx`): title 30px extrabold, subtitle xl bold,
+  body 16, caption 14 semibold; new `display` variant for hero numbers.
+- **Cards** rounded-3xl with soft shadow; **buttons** are full pills,
+  56px, bold 17px; **chips** are tinted green pills (solid when selected).
+- **Home**: greeting + motivational subline; NEW `WeekStrip` (7 date
+  bubbles, logged days filled green with ✓, today ringed dark) + 🔥
+  logging-streak row (`computeLoggingStreak`, client-side from the existing
+  `/dashboard/history?days=30` — a *logging* streak, deliberately the
+  easiest streak to keep, since the habit being rewarded is showing up);
+  hero calorie card is now a fully saturated green panel with a 60px white
+  number and thick white pace bar; protein (sky) + burned (amber) tinted
+  duo cards; water card sky-tinted with big quick-add pills.
+- **Tab bar**: filled icons when active, bold labels.
+- **Coach**: header with "Clear chat" (new `DELETE /coach/conversation`
+  backend route + integration tests — messages cascade-delete, next
+  message starts fresh); bubbles restyled (user solid green, assistant
+  white card, asymmetric corners).
+- **Calorie slider** now sits in its own tinted "🎚️ Slide to fix
+  calories" panel — it existed before but users weren't finding it.
+- **Insight cards**: fully tinted tone panels (green/amber) instead of
+  hairline left borders.
+
+Not touched: navigation structure, onboarding flow order, log-meal state
+machine — this pass is visual identity + retention mechanics only.

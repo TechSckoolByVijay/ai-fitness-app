@@ -3,6 +3,7 @@ import { ScrollView, View } from 'react-native';
 import { ActivityListItem } from '../../src/components/ActivityListItem';
 import { InsightCard } from '../../src/components/InsightCard';
 import { MealListItem } from '../../src/components/MealListItem';
+import { WeekStrip } from '../../src/components/WeekStrip';
 import { Card } from '../../src/components/ui/Card';
 import { EmptyState } from '../../src/components/ui/EmptyState';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
@@ -11,10 +12,13 @@ import { Text } from '../../src/components/ui/Text';
 import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
 import { VoiceButton } from '../../src/components/VoiceButton';
 import { WaterCard } from '../../src/components/WaterCard';
-import { useDashboard } from '../../src/hooks/useDashboard';
+import { useDashboard, useDashboardHistory } from '../../src/hooks/useDashboard';
 import { useInsights } from '../../src/hooks/useInsights';
 import { useMe } from '../../src/hooks/useMe';
 import { getCaloriePace } from '../../src/utils/calorieProgress';
+import { computeLoggingStreak } from '../../src/utils/loggingStreak';
+
+const STREAK_WINDOW_DAYS = 30;
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -23,8 +27,16 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
+function getGreetingSubline(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Let's make today count 💪";
+  if (hour < 17) return 'Keep the momentum going ⚡';
+  return 'Strong finish to the day 🌙';
+}
+
 export default function HomeScreen() {
   const dashboard = useDashboard();
+  const history = useDashboardHistory(STREAK_WINDOW_DAYS);
   const insights = useInsights();
   const me = useMe();
   const firstName = me.data?.name?.split(' ')[0];
@@ -34,42 +46,55 @@ export default function HomeScreen() {
       ? getCaloriePace(primaryGoal, dashboard.data.caloriesConsumed, dashboard.data.calorieTarget)
       : null;
 
-  return (
-    <View className="flex-1 bg-white dark:bg-surface-dark">
-      <ScrollView contentContainerClassName="gap-5 px-5 pb-4 pt-4" showsVerticalScrollIndicator={false}>
-        <TopInsetSpacer />
-        <Text variant="title">
-          {getGreeting()}
-          {firstName ? `, ${firstName}` : ''} 👋
-        </Text>
+  const historyDays = history.data?.days ?? [];
+  const streak = computeLoggingStreak(historyDays);
+  const weekDays = historyDays.slice(-7).map((d) => ({ date: d.date, logged: d.caloriesConsumed > 0 }));
 
-        {insights.data && insights.data.cards.length > 0 ? (
-          <View className="gap-2">
-            {insights.data.cards.map((card) => (
-              <InsightCard key={card.id} card={card} />
-            ))}
-          </View>
+  return (
+    <View className="flex-1 bg-surface-light dark:bg-surface-dark">
+      <ScrollView contentContainerClassName="gap-4 px-5 pb-4 pt-4" showsVerticalScrollIndicator={false}>
+        <TopInsetSpacer />
+        <View>
+          <Text variant="title">
+            {getGreeting()}
+            {firstName ? `, ${firstName}` : ''} 👋
+          </Text>
+          <Text variant="body" className="mt-1 text-gray-500 dark:text-gray-400">
+            {getGreetingSubline()}
+          </Text>
+        </View>
+
+        {weekDays.length > 0 ? (
+          <WeekStrip days={weekDays} streak={streak.current} bestInWindow={streak.bestInWindow} />
         ) : null}
 
         {dashboard.isLoading ? (
           <View className="gap-3">
-            <SkeletonBlock className="h-28 w-full" />
+            <SkeletonBlock className="h-40 w-full" />
             <SkeletonBlock className="h-24 w-full" />
           </View>
         ) : dashboard.data ? (
           <>
-            <Card>
-              <Text variant="caption">Calories</Text>
-              <View className="mt-1 flex-row items-baseline gap-1.5">
-                <Text className="text-3xl font-bold text-gray-900 dark:text-gray-50">
+            <View className="rounded-3xl bg-primary-500 p-6 shadow-md shadow-primary-500/30">
+              <Text className="text-[13px] font-bold uppercase tracking-widest text-white/80">
+                Calories today
+              </Text>
+              <View className="mt-2 flex-row items-baseline gap-2">
+                <Text className="text-6xl font-extrabold tracking-tight text-white">
                   {Math.round(dashboard.data.caloriesConsumed)}
                 </Text>
-                <Text variant="body">/ {dashboard.data.calorieTarget ?? '—'} kcal</Text>
+                <Text className="text-xl font-semibold text-white/80">
+                  / {dashboard.data.calorieTarget ?? '—'} kcal
+                </Text>
               </View>
-              <View className="mt-3">
+              <View className="mt-4">
                 <ProgressBar
                   value={dashboard.data.caloriesConsumed}
                   target={dashboard.data.calorieTarget}
+                  colorClassName="bg-white"
+                  trackClassName="bg-white/25"
+                  heightClassName="h-3.5"
+                  markerClassName="bg-primary-900/60"
                   markerPct={
                     caloriePace && dashboard.data.calorieTarget
                       ? (caloriePace.expectedByNow / dashboard.data.calorieTarget) * 100
@@ -77,52 +102,76 @@ export default function HomeScreen() {
                   }
                 />
               </View>
-              <Text variant="caption" className="mt-1.5">
-                {caloriePace ? caloriePace.message : 'Estimated calories'}
-                <Text className="text-[11px] opacity-70"> · estimated</Text>
-              </Text>
-            </Card>
-
-            <Card>
-              <Text variant="caption">Protein</Text>
-              <View className="mt-1 flex-row items-baseline gap-1.5">
-                <Text className="text-2xl font-semibold text-gray-900 dark:text-gray-50">
-                  {Math.round(dashboard.data.proteinConsumed)}
+              {caloriePace ? (
+                <Text className="mt-2.5 text-[14px] font-semibold text-white/90">
+                  {caloriePace.message}
+                  <Text className="text-[12px] text-white/60"> · estimated</Text>
                 </Text>
-                <Text variant="body">/ {dashboard.data.proteinTarget ?? '—'} g</Text>
-              </View>
-              <View className="mt-3">
-                <ProgressBar
-                  value={dashboard.data.proteinConsumed}
-                  target={dashboard.data.proteinTarget}
-                  colorClassName="bg-blue-400"
-                />
-              </View>
-            </Card>
+              ) : null}
+            </View>
+
+            <View className="flex-row gap-4">
+              <Card className="flex-1 bg-sky-50 dark:bg-sky-950/60">
+                <Text className="text-2xl">🥩</Text>
+                <Text className="mt-1 text-3xl font-extrabold tracking-tight text-sky-600 dark:text-sky-400">
+                  {Math.round(dashboard.data.proteinConsumed)}
+                  <Text className="text-base font-bold text-sky-600/70 dark:text-sky-400/70">
+                    {' '}
+                    / {dashboard.data.proteinTarget ?? '—'} g
+                  </Text>
+                </Text>
+                <Text variant="caption" className="mt-0.5 font-bold text-sky-700/80 dark:text-sky-300/80">
+                  Protein
+                </Text>
+                <View className="mt-2">
+                  <ProgressBar
+                    value={dashboard.data.proteinConsumed}
+                    target={dashboard.data.proteinTarget}
+                    colorClassName="bg-sky-500"
+                    trackClassName="bg-sky-200/60 dark:bg-sky-900/60"
+                  />
+                </View>
+              </Card>
+
+              <Card className="flex-1 bg-amber-50 dark:bg-amber-950/60">
+                <Text className="text-2xl">🔥</Text>
+                <Text className="mt-1 text-3xl font-extrabold tracking-tight text-amber-600 dark:text-amber-400">
+                  {Math.round(dashboard.data.activeCalories)}
+                  <Text className="text-base font-bold text-amber-600/70 dark:text-amber-400/70"> kcal</Text>
+                </Text>
+                <Text variant="caption" className="mt-0.5 font-bold text-amber-700/80 dark:text-amber-300/80">
+                  Burned
+                </Text>
+                <Text variant="caption" className="mt-2 text-amber-700/70 dark:text-amber-300/70">
+                  {Math.round(dashboard.data.exerciseDurationMin)} min active
+                </Text>
+              </Card>
+            </View>
 
             <WaterCard consumedMl={dashboard.data.waterConsumedMl} targetMl={dashboard.data.waterTargetMl} />
 
-            {dashboard.data.activeCalories > 0 || dashboard.data.exerciseDurationMin > 0 ? (
-              <Card>
-                <Text variant="caption">Active calories</Text>
-                <View className="mt-1 flex-row items-baseline gap-1.5">
-                  <Text className="text-2xl font-semibold text-gray-900 dark:text-gray-50">
-                    {Math.round(dashboard.data.activeCalories)}
-                  </Text>
-                  <Text variant="body">kcal burned</Text>
-                </View>
-                <Text variant="caption" className="mt-1.5">
-                  {Math.round(dashboard.data.exerciseDurationMin)} min of activity today
-                </Text>
-              </Card>
+            {insights.data && insights.data.cards.length > 0 ? (
+              <View className="gap-2.5">
+                {insights.data.cards.map((card) => (
+                  <InsightCard key={card.id} card={card} />
+                ))}
+              </View>
             ) : null}
 
             <View>
-              <Text variant="subtitle" className="mb-2">
-                Today&apos;s Meals
+              <Text variant="subtitle" className="mb-2.5">
+                Today&apos;s Meals 🍽️
               </Text>
               {dashboard.data.meals.length === 0 ? (
-                <EmptyState emoji="🍽️" title="Start by telling me what you ate." />
+                <Card className="items-center py-8">
+                  <Text className="text-4xl">🎙️</Text>
+                  <Text variant="subtitle" className="mt-2 text-center">
+                    Nothing logged yet
+                  </Text>
+                  <Text variant="caption" className="mt-1 text-center">
+                    Tap the mic below and just say what you ate!
+                  </Text>
+                </Card>
               ) : (
                 <Card className="px-4 py-1">
                   {dashboard.data.meals.map((meal) => (
@@ -140,8 +189,8 @@ export default function HomeScreen() {
 
             {dashboard.data.activities.length > 0 ? (
               <View>
-                <Text variant="subtitle" className="mb-2">
-                  Today&apos;s Activities
+                <Text variant="subtitle" className="mb-2.5">
+                  Today&apos;s Activities 🏃
                 </Text>
                 <Card className="px-4 py-1">
                   {dashboard.data.activities.map((activity) => (

@@ -12,3 +12,7 @@ export function getCoachConversation() {
 export function sendCoachMessage(input: SendCoachMessageRequest) {
   return apiRequest<SendCoachMessageResponse>('/coach/messages', { method: 'POST', body: input });
 }
+
+export function clearCoachConversation() {
+  return apiRequest<void>('/coach/conversation', { method: 'DELETE' });
+}

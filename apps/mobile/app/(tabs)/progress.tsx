@@ -57,7 +57,7 @@ export default function ProgressScreen() {
   const daysLoggedWithTarget = calorieTarget ? historyDays.filter((d) => d.caloriesConsumed > 0).length : 0;
 
   return (
-    <ScrollView className="flex-1 bg-white dark:bg-surface-dark" contentContainerClassName="gap-5 p-5">
+    <ScrollView className="flex-1 bg-surface-light dark:bg-surface-dark" contentContainerClassName="gap-5 p-5">
       <TopInsetSpacer />
       <Text variant="title">Progress</Text>
 

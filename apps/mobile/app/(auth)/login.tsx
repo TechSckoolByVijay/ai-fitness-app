@@ -24,7 +24,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1 bg-white dark:bg-surface-dark"
+      className="flex-1 bg-surface-light dark:bg-surface-dark"
     >
       <ScrollView contentContainerClassName="flex-1 justify-center px-6 py-10" keyboardShouldPersistTaps="handled">
         <View className="gap-2">

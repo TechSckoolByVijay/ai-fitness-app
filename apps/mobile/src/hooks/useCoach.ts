@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CoachConversationResponse } from '@fitness-app/shared';
-import { getCoachConversation, sendCoachMessage } from '../api/coach.api';
+import { clearCoachConversation, getCoachConversation, sendCoachMessage } from '../api/coach.api';
 import { queryKeys } from '../api/queryKeys';
 import { useAuthStore } from '../state/authStore';
 
@@ -10,6 +10,16 @@ export function useCoachConversation() {
     queryKey: queryKeys.coachConversation,
     queryFn: getCoachConversation,
     enabled: status === 'authenticated',
+  });
+}
+
+export function useClearCoachConversation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: clearCoachConversation,
+    onSuccess: () => {
+      queryClient.setQueryData<CoachConversationResponse>(queryKeys.coachConversation, { conversation: null });
+    },
   });
 }
 

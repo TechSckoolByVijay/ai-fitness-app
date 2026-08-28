@@ -178,4 +178,35 @@ describe('coach chat', () => {
     });
     expect(response.statusCode).toBe(401);
   });
+
+  it('clears the conversation, and the next GET starts from a blank slate', async () => {
+    const token = await registerAndGetToken(app, 'coach-clear');
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/coach/messages',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { message: 'Suggest a light snack' },
+    });
+
+    const clearRes = await app.inject({
+      method: 'DELETE',
+      url: '/api/v1/coach/conversation',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(clearRes.statusCode).toBe(204);
+
+    const afterRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/coach/conversation',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(afterRes.statusCode).toBe(200);
+    expect(afterRes.json().conversation).toBeNull();
+  });
+
+  it('requires authentication to clear the conversation', async () => {
+    const response = await app.inject({ method: 'DELETE', url: '/api/v1/coach/conversation' });
+    expect(response.statusCode).toBe(401);
+  });
 });

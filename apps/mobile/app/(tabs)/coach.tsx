@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { ApiError } from '../../src/api/client';
 import { ChatBubble } from '../../src/components/ChatBubble';
 import { Button } from '../../src/components/ui/Button';
@@ -8,16 +8,28 @@ import { EmptyState } from '../../src/components/ui/EmptyState';
 import { Text } from '../../src/components/ui/Text';
 import { TextField } from '../../src/components/ui/TextField';
 import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
-import { useCoachConversation, useSendCoachMessage } from '../../src/hooks/useCoach';
+import { useClearCoachConversation, useCoachConversation, useSendCoachMessage } from '../../src/hooks/useCoach';
 import { useVoiceRecognition } from '../../src/hooks/useVoiceRecognition';
 import { getContextualCoachPrompts } from '../../src/utils/coachSuggestions';
 
 export default function CoachScreen() {
   const conversation = useCoachConversation();
   const sendMessage = useSendCoachMessage();
+  const clearConversation = useClearCoachConversation();
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+
+  const confirmClearChat = () => {
+    if (Platform.OS === 'web') {
+      if (window.confirm('Clear all chat messages? This cannot be undone.')) clearConversation.mutate();
+      return;
+    }
+    Alert.alert('Clear chat?', 'This removes all messages. It cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: () => clearConversation.mutate() },
+    ]);
+  };
   // Computed once per screen visit, not on every render — the suggestions
   // only need to be roughly right for "now", not update live to the minute.
   const suggestedPrompts = useMemo(() => getContextualCoachPrompts(), []);
@@ -54,12 +66,18 @@ export default function CoachScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1 bg-white dark:bg-surface-dark"
+      className="flex-1 bg-surface-light dark:bg-surface-dark"
     >
       <TopInsetSpacer />
+      <View className="flex-row items-center justify-between px-5 pb-1 pt-2">
+        <Text variant="title">Coach 🤖</Text>
+        {messages.length > 0 ? (
+          <Button label="Clear chat" variant="ghost" onPress={confirmClearChat} loading={clearConversation.isPending} />
+        ) : null}
+      </View>
       {conversation.isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#22b56d" />
+          <ActivityIndicator size="large" color="#12c06e" />
         </View>
       ) : messages.length === 0 ? (
         <View className="flex-1 items-center justify-center gap-4 px-6">

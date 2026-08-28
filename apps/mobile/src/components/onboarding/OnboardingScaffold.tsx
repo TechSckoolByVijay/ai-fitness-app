@@ -13,7 +13,7 @@ interface OnboardingScaffoldProps {
 
 export function OnboardingScaffold({ step, title, subtitle, children, footer }: OnboardingScaffoldProps) {
   return (
-    <View className="flex-1 bg-white dark:bg-surface-dark">
+    <View className="flex-1 bg-surface-light dark:bg-surface-dark">
       <View className="px-6 pt-6">
         <View className="h-1.5 w-full flex-row gap-1.5">
           {Array.from({ length: TOTAL_STEPS }).map((_, i) => (

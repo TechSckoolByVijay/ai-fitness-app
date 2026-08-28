@@ -21,6 +21,8 @@ interface ButtonProps extends Omit<PressableProps, 'children'> {
   disabled?: boolean;
 }
 
+// Full pill shape + big bold label — buttons should read as the obvious
+// thing to tap, reference-app style, not quiet rectangles.
 export function Button({ label, variant = 'primary', loading, disabled, className = '', ...props }: ButtonProps & { className?: string }) {
   const isDisabled = disabled || loading;
   return (
@@ -28,13 +30,13 @@ export function Button({ label, variant = 'primary', loading, disabled, classNam
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled }}
       disabled={isDisabled}
-      className={`min-h-[52px] items-center justify-center rounded-xl px-6 ${VARIANT_CLASSES[variant]} ${isDisabled ? 'opacity-50' : ''} ${className}`}
+      className={`min-h-[56px] items-center justify-center rounded-full px-6 ${VARIANT_CLASSES[variant]} ${isDisabled ? 'opacity-50' : ''} ${className}`}
       {...props}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? '#ffffff' : '#22b56d'} />
+        <ActivityIndicator color={variant === 'primary' ? '#ffffff' : '#12c06e'} />
       ) : (
-        <Text className={`text-base font-semibold ${TEXT_CLASSES[variant]}`}>{label}</Text>
+        <Text className={`text-[17px] font-bold ${TEXT_CLASSES[variant]}`}>{label}</Text>
       )}
     </Pressable>
   );
