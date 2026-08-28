@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
 import { useState } from 'react';
-import { Alert, Platform, ScrollView, View } from 'react-native';
+import { Alert, Platform, ScrollView, Share, View } from 'react-native';
 import { ApiError } from '../../src/api/client';
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
@@ -63,6 +63,17 @@ export default function ProfileScreen() {
     }
     setIsCheckingUpdate(false);
     setUpdateMessage(result.detail);
+  };
+
+  const handleShareApp = async () => {
+    try {
+      await Share.share({
+        message:
+          "I've been using Fitness Coach — you just *say* what you ate and it tracks calories, protein and everything for you. Free, no ads. Get it here: https://github.com/TechSckoolByVijay/ai-fitness-app/releases/latest",
+      });
+    } catch {
+      // Share sheet dismissed or unavailable — nothing to do.
+    }
   };
 
   const handleDeleteAccount = () => {
@@ -142,6 +153,16 @@ export default function ProfileScreen() {
           </Card>
 
           <RemindersCard />
+
+          <Card className="bg-primary-50 dark:bg-primary-900/30">
+            <Text variant="subtitle" className="text-primary-800 dark:text-primary-200">
+              Enjoying Fitness Coach? 💚
+            </Text>
+            <Text variant="caption" className="mt-1 text-primary-700/80 dark:text-primary-300/80">
+              Share it with a friend who&apos;s working on their health too.
+            </Text>
+            <Button label="Share with friends" onPress={() => void handleShareApp()} className="mt-3" />
+          </Card>
 
           <Card>
             <Text variant="subtitle" className="mb-2">
