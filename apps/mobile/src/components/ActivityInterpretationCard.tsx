@@ -53,7 +53,7 @@ export function ActivityInterpretationCard({
       </View>
 
       <View className="flex-row gap-3">
-        <Button label="Confirm" onPress={onConfirm} loading={isSubmitting} className="flex-1" />
+        <Button label="✓ Confirm" variant="cta" onPress={onConfirm} loading={isSubmitting} className="flex-1" />
         <Button label="Retype" variant="secondary" onPress={onRetype} disabled={isSubmitting} />
       </View>
     </Card>

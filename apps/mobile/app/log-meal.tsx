@@ -332,65 +332,103 @@ export default function LogMealScreen() {
           </View>
         ) : null}
 
-        {state.status === 'recording' ? (
+        {state.status === 'recording' && voice.isListening ? (
+          // MODE: actively listening — the mic is the whole story.
           <View className="items-center gap-4 py-8">
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={voice.isListening ? 'Stop recording' : 'Record more'}
-              onPress={voice.isListening ? () => voice.stop() : startRecording}
-              className="h-24 w-24 items-center justify-center rounded-full bg-primary-500 shadow-lg active:bg-primary-600"
+              accessibilityLabel="Stop recording"
+              onPress={() => voice.stop()}
+              className="h-28 w-28 items-center justify-center rounded-full border-4 border-red-500 bg-red-500/10"
             >
-              <Text className="text-5xl">{voice.isListening ? '🔴' : '🎙️'}</Text>
+              <Text className="text-5xl">🔴</Text>
             </Pressable>
-            <Text variant="subtitle">
-              {voice.isListening ? 'Listening...' : text.trim() ? "Got it — didn't miss anything?" : 'Starting...'}
-            </Text>
-
-            {voice.transcript && voice.isListening ? (
+            <Text variant="subtitle">Listening... speak freely</Text>
+            {voice.transcript ? (
               <Text variant="body" className="text-center italic">
                 &quot;{voice.transcript}&quot;
               </Text>
             ) : null}
-
             {voice.error ? (
               <Text variant="caption" className="text-center text-red-500">
                 {voice.error}
               </Text>
             ) : null}
+            <Button label="Done speaking" variant="secondary" onPress={() => voice.stop()} className="w-full" />
+            <Button label="Cancel" variant="quiet" onPress={cancelRecording} />
+          </View>
+        ) : null}
 
-            {voice.isListening ? (
-              <Button label="Stop" onPress={() => voice.stop()} className="w-full" />
-            ) : text.trim() ? (
-              <Button label="🎙️ Add more" variant="secondary" onPress={startRecording} className="w-full" />
-            ) : null}
-            <Button label="Cancel" variant="ghost" onPress={cancelRecording} />
-
-            <View className="mt-2 w-full gap-2">
-              <Text variant="caption">
-                {text.trim()
-                  ? "Review what was heard below — edit if anything's off, then confirm:"
-                  : 'Or type it instead — a whole day at once works too:'}
-              </Text>
+        {state.status === 'recording' && !voice.isListening && text.trim() ? (
+          // MODE: review what was heard — ONE bold orange action, everything
+          // else recedes. No example chips here (tapping one would overwrite
+          // what the user just said).
+          <View className="gap-4 py-2">
+            <Text variant="subtitle" className="text-center">
+              Here&apos;s what I heard 👇
+            </Text>
+            <View className="rounded-3xl bg-white p-4 shadow-sm shadow-black/5 dark:bg-muted-dark">
               <TextField
-                label="What did you eat or do?"
+                label=""
                 value={text}
                 onChangeText={setText}
-                placeholder="e.g. Breakfast was milk and a banana, lunch was 3 chapatis and rice"
+                multiline
+                className="w-full border-0 bg-transparent px-0 text-lg dark:bg-transparent"
+              />
+              <Text variant="caption" className="mt-1 text-[12px]">
+                Tap the text above to fix anything
+              </Text>
+            </View>
+            <Button label="✓ Looks right — log it" variant="cta" onPress={() => runInterpret(text)} className="w-full" />
+            <View className="flex-row items-center gap-3">
+              <Button label="🎙️ Add more" variant="secondary" onPress={startRecording} className="flex-1" />
+              <Button label="Start over" variant="quiet" onPress={() => setText('')} />
+            </View>
+            {voice.error ? (
+              <Text variant="caption" className="text-center text-red-500">
+                {voice.error}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {state.status === 'recording' && !voice.isListening && !text.trim() ? (
+          // MODE: nothing captured yet — invite voice, offer typing + examples.
+          <View className="items-center gap-4 py-6">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Start recording"
+              onPress={startRecording}
+              className="h-28 w-28 items-center justify-center rounded-full bg-primary-500 shadow-lg active:bg-primary-600"
+            >
+              <Text className="text-5xl">🎙️</Text>
+            </Pressable>
+            <Text variant="subtitle">Tell me what you ate or did</Text>
+            {voice.error ? (
+              <Text variant="caption" className="text-center text-red-500">
+                {voice.error}
+              </Text>
+            ) : null}
+            <View className="w-full gap-2.5">
+              <TextField
+                label=""
+                value={text}
+                onChangeText={setText}
+                placeholder="Or type it here — a whole day at once works too"
                 multiline
                 className="w-full"
               />
-              <Button
-                label={text.trim() ? '✓ Confirm & log' : 'Log it'}
-                onPress={() => runInterpret(text)}
-                disabled={!text.trim()}
-                className="w-full"
-              />
+              <Button label="Log it" onPress={() => runInterpret(text)} disabled={!text.trim()} className="w-full" />
+              <Text variant="caption" className="mt-1">
+                Try one of these:
+              </Text>
               <View className="flex-row flex-wrap gap-2">
                 {EXAMPLE_PHRASES.map((phrase) => (
                   <Chip key={phrase} label={phrase} selected={text === phrase} onPress={() => setText(phrase)} />
                 ))}
               </View>
             </View>
+            <Button label="Cancel" variant="quiet" onPress={cancelRecording} />
           </View>
         ) : null}
 
@@ -404,7 +442,7 @@ export default function LogMealScreen() {
         {events.length > 1 ? (
           <View className="flex-row items-center justify-between rounded-xl bg-primary-50 px-4 py-3 dark:bg-primary-950">
             <Text variant="caption">Found {events.length} things to log — review each, or confirm them all.</Text>
-            <Button label="Confirm all" onPress={confirmAllEvents} loading={isSubmitting} />
+            <Button label="✓ Confirm all" variant="cta" onPress={confirmAllEvents} loading={isSubmitting} />
           </View>
         ) : null}
 
