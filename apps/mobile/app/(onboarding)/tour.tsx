@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { View } from 'react-native';
+import { Image, View } from 'react-native';
 import { OnboardingScaffold } from '../../src/components/onboarding/OnboardingScaffold';
 import { Button } from '../../src/components/ui/Button';
 import { Text } from '../../src/components/ui/Text';
@@ -35,6 +35,12 @@ export default function TourStep() {
       subtitle="Four things worth knowing before you dive in."
       footer={<Button label="Let's go" onPress={() => router.replace('/')} />}
     >
+      <Image
+        source={require('../../assets/photos/runners.jpg')}
+        style={{ width: '100%', height: 140, borderRadius: 24, marginBottom: 8 }}
+        resizeMode="cover"
+        accessible={false}
+      />
       <View className="gap-5">
         {HIGHLIGHTS.map((item) => (
           <View key={item.title} className="flex-row gap-3">

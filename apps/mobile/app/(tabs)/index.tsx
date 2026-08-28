@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { ScrollView, View } from 'react-native';
+import { Image, ScrollView, View } from 'react-native';
 import { ActivityListItem } from '../../src/components/ActivityListItem';
 import { InsightCard } from '../../src/components/InsightCard';
 import { MealListItem } from '../../src/components/MealListItem';
@@ -163,14 +163,21 @@ export default function HomeScreen() {
                 Today&apos;s Meals 🍽️
               </Text>
               {dashboard.data.meals.length === 0 ? (
-                <Card className="items-center py-8">
-                  <Text className="text-4xl">🎙️</Text>
-                  <Text variant="subtitle" className="mt-2 text-center">
-                    Nothing logged yet
-                  </Text>
-                  <Text variant="caption" className="mt-1 text-center">
-                    Tap the mic below and just say what you ate!
-                  </Text>
+                <Card className="items-center overflow-hidden p-0">
+                  <Image
+                    source={require('../../assets/photos/healthy-bowl.jpg')}
+                    style={{ width: '100%', height: 130 }}
+                    resizeMode="cover"
+                    accessible={false}
+                  />
+                  <View className="items-center px-5 py-5">
+                    <Text variant="subtitle" className="text-center">
+                      Nothing logged yet
+                    </Text>
+                    <Text variant="caption" className="mt-1 text-center">
+                      Tap the mic below and just say what you ate! 🎙️
+                    </Text>
+                  </View>
                 </Card>
               ) : (
                 <Card className="px-4 py-1">

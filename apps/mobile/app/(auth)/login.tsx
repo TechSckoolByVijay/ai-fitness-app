@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { ApiError } from '../../src/api/client';
 import { Button } from '../../src/components/ui/Button';
 import { Text } from '../../src/components/ui/Text';
@@ -27,6 +27,12 @@ export default function LoginScreen() {
       className="flex-1 bg-surface-light dark:bg-surface-dark"
     >
       <ScrollView contentContainerClassName="flex-1 justify-center px-6 py-10" keyboardShouldPersistTaps="handled">
+        <Image
+          source={require('../../assets/photos/healthy-bowl.jpg')}
+          style={{ width: '100%', height: 150, borderRadius: 24, marginBottom: 20 }}
+          resizeMode="cover"
+          accessible={false}
+        />
         <View className="gap-2">
           <Text variant="title">Welcome back</Text>
           <Text variant="body" className="mb-6">
