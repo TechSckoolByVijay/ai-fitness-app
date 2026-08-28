@@ -26,6 +26,17 @@ const EnvSchema = z.object({
 
   AI_API_KEY: z.string().optional(),
   AI_MODEL: z.string().optional(),
+  /**
+   * Optional OpenAI-compatible endpoint. Leave unset for api.openai.com;
+   * set to an Azure OpenAI resource's v1 endpoint
+   * (https://<resource>.openai.azure.com/openai/v1) to use Azure instead —
+   * with AI_API_KEY as the Azure key and AI_MODEL as the deployment name.
+   * Switching providers is just changing these env vars, no code change.
+   */
+  AI_BASE_URL: z.string().url().optional(),
+  /** Per-user daily caps on AI-backed calls — cost protection for the shared API key. */
+  AI_DAILY_INTERPRET_LIMIT: z.coerce.number().int().positive().default(50),
+  AI_DAILY_COACH_LIMIT: z.coerce.number().int().positive().default(100),
   SPEECH_API_KEY: z.string().optional(),
   NUTRITION_API_KEY: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),

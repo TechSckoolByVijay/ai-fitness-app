@@ -177,6 +177,7 @@ model User {
   aiConversations         AiConversation[]
   feedback                UserFeedback[]
   refreshTokens           RefreshToken[]
+  aiUsage                 AiUsage[]
 
   @@index([email])
 }
@@ -515,6 +516,20 @@ model AiMessage {
   conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+}
+
+// Per-user, per-day counters for AI-backed calls (interpret, coach) — cost
+// protection for the shared AI API key. One row per user/day/kind.
+model AiUsage {
+  id     String   @id @default(uuid()) @db.Uuid
+  userId String   @db.Uuid
+  date   DateTime @db.Date
+  kind   String
+  count  Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date, kind])
 }
 
 model UserFeedback {

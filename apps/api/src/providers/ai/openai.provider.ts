@@ -251,8 +251,17 @@ export class OpenAIProvider implements AIProvider {
   constructor(
     apiKey: string,
     private readonly model: string = 'gpt-4o-mini',
+    baseURL?: string,
   ) {
-    this.client = new OpenAI({ apiKey, timeout: REQUEST_TIMEOUT_MS });
+    this.client = new OpenAI({
+      apiKey,
+      timeout: REQUEST_TIMEOUT_MS,
+      // Unset -> api.openai.com. Set -> an OpenAI-compatible endpoint, e.g.
+      // Azure OpenAI's https://<resource>.openai.azure.com/openai/v1. Azure's
+      // v1 endpoint accepts standard Bearer auth, but the classic `api-key`
+      // header is also sent for compatibility — harmless on OpenAI itself.
+      ...(baseURL ? { baseURL, defaultHeaders: { 'api-key': apiKey } } : {}),
+    });
   }
 
   async extractHealthEvents({

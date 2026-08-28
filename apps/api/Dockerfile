@@ -28,4 +28,7 @@ RUN npx prisma generate
 
 ENV NODE_ENV=production
 EXPOSE 4000
-CMD ["npx", "tsx", "src/server.ts"]
+# Apply any pending migrations before serving — schema changes now ship with
+# the same git push as the code that needs them (prod's migration history was
+# verified in sync before enabling this).
+CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx src/server.ts"]

@@ -6,6 +6,7 @@ import {
 } from '@fitness-app/shared';
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
+import { consumeAiQuota } from '../ai-quota/ai-quota.service';
 import { clearConversation, getCurrentConversation, sendCoachMessage, setMessageReaction } from './coach-chat.service';
 
 export async function coachRoutes(app: FastifyInstance) {
@@ -21,6 +22,7 @@ export async function coachRoutes(app: FastifyInstance) {
 
   app.post('/coach/messages', { preHandler: app.authenticate }, async (request, reply) => {
     const body = SendCoachMessageRequestSchema.parse(request.body);
+    await consumeAiQuota(app.prisma, request.user.sub, 'coach', app.env.AI_DAILY_COACH_LIMIT);
     const result = await sendCoachMessage(
       { prisma: app.prisma, aiProvider: app.aiProvider },
       request.user.sub,

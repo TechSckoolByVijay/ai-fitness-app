@@ -39,3 +39,10 @@ export class InterpretationFailedError extends AppError {
     super(message, 422, 'INTERPRETATION_FAILED');
   }
 }
+
+/** Raised when a user exhausts their daily AI budget — protects the shared API key from a runaway client or one heavy user making the app costly for everyone. */
+export class QuotaExceededError extends AppError {
+  constructor(message = "You've reached today's AI limit — it resets at midnight. Manual logging still works!") {
+    super(message, 429, 'QUOTA_EXCEEDED');
+  }
+}
