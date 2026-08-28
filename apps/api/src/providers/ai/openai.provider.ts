@@ -252,15 +252,24 @@ export class OpenAIProvider implements AIProvider {
     apiKey: string,
     private readonly model: string = 'gpt-4o-mini',
     baseURL?: string,
+    azureApiVersion?: string,
   ) {
     this.client = new OpenAI({
       apiKey,
       timeout: REQUEST_TIMEOUT_MS,
-      // Unset -> api.openai.com. Set -> an OpenAI-compatible endpoint, e.g.
-      // Azure OpenAI's https://<resource>.openai.azure.com/openai/v1. Azure's
-      // v1 endpoint accepts standard Bearer auth, but the classic `api-key`
-      // header is also sent for compatibility — harmless on OpenAI itself.
-      ...(baseURL ? { baseURL, defaultHeaders: { 'api-key': apiKey } } : {}),
+      ...(baseURL
+        ? {
+            baseURL,
+            defaultHeaders: { 'api-key': apiKey },
+            // Two Azure OpenAI endpoint shapes exist. The newer
+            // "/openai/v1" one is OpenAI-compatible (Bearer auth, no
+            // version param) — just set AI_BASE_URL to it. The classic
+            // shape (https://<resource>.openai.azure.com/openai) instead
+            // needs ?api-version=... on every request — set
+            // AI_AZURE_API_VERSION to switch the SDK into that mode.
+            ...(azureApiVersion ? { defaultQuery: { 'api-version': azureApiVersion } } : {}),
+          }
+        : {}),
     });
   }
 

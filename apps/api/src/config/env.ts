@@ -34,6 +34,15 @@ const EnvSchema = z.object({
    * Switching providers is just changing these env vars, no code change.
    */
   AI_BASE_URL: z.string().url().optional(),
+  /**
+   * Set only for Azure OpenAI resources using the classic (non-"/v1")
+   * endpoint shape, e.g. AI_BASE_URL=https://<resource>.openai.azure.com/openai
+   * plus AI_AZURE_API_VERSION=2025-04-01-preview. When set, requests use
+   * Azure's ?api-version=... + api-key header auth instead of the plain
+   * OpenAI-compatible Bearer scheme. Leave unset for api.openai.com or an
+   * Azure resource exposing the newer /openai/v1 endpoint.
+   */
+  AI_AZURE_API_VERSION: z.string().optional(),
   /** Per-user daily caps on AI-backed calls — cost protection for the shared API key. */
   AI_DAILY_INTERPRET_LIMIT: z.coerce.number().int().positive().default(50),
   AI_DAILY_COACH_LIMIT: z.coerce.number().int().positive().default(100),
