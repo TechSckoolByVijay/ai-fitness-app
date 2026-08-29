@@ -144,6 +144,31 @@ export default function HomeScreen() {
               ) : null}
             </View>
 
+            {dashboard.data.steps != null ? (
+              <Card className="bg-violet-50 dark:bg-violet-950/60">
+                <View className="flex-row items-baseline justify-between">
+                  <Text className="text-2xl">👟</Text>
+                  <Text variant="caption" className="font-bold text-violet-700/80 dark:text-violet-300/80">
+                    Steps
+                  </Text>
+                </View>
+                <Text className="mt-1 text-3xl font-extrabold tracking-tight text-violet-600 dark:text-violet-400">
+                  {dashboard.data.steps.toLocaleString()}
+                  <Text className="text-base font-bold text-violet-600/70 dark:text-violet-400/70">
+                    {' '}
+                    / {dashboard.data.stepsTarget ?? '—'}
+                  </Text>
+                </Text>
+                <View className="mt-2">
+                  <ProgressBar
+                    value={dashboard.data.steps}
+                    target={dashboard.data.stepsTarget}
+                    colorClassName="bg-violet-500"
+                  />
+                </View>
+              </Card>
+            ) : null}
+
             <View className="flex-row gap-4">
               <Card className="flex-1 bg-sky-50 dark:bg-sky-950/60">
                 <Text className="text-2xl">🥩</Text>

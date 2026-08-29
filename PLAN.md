@@ -1064,6 +1064,28 @@ an input-UX problem only.
 Weight Progress card: goal weight, projected reach date, and the trend line
 chart. `LineChart` and `useWeightEntries` already exist.
 
+## 8. Server-sent reminders — DONE (2026-08-29)
+
+Local scheduling only survived on the device it was set on. The server now
+owns delivery via Expo push, keyed on the device timezone that travels up
+with the push token. Local scheduling remains as the fallback when push is
+unavailable, and the two are either/or so nothing arrives twice.
+
+## 9. Health Connect — DONE (2026-08-29)
+
+The pre-existing `HealthDataProvider` interface was shaped as *the server
+fetches health data*, which cannot work: Health Connect and HealthKit are
+on-device APIs the server has no access to. Replaced with the correct shape
+— the client reads the device and posts to `/health/sync`.
+
+Steps and distance mirror into `DailySummary`; device sleep and active
+calories deliberately do NOT, because the daily aggregation pass recomputes
+those two from the user's logged entries and would silently overwrite them.
+Those live in `HealthMetric` only, and logged entries stay authoritative.
+
+Needs a dev/production build — the native module is absent in Expo Go, where
+the card states that plainly rather than offering a button that does nothing.
+
 ## Rejected
 
 **Home + navigation restyle (5 tabs -> 3 tabs + centre FAB).** Considered

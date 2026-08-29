@@ -10,6 +10,7 @@ import { Text } from '../../src/components/ui/Text';
 import { TextField } from '../../src/components/ui/TextField';
 import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
 import { formatHeight, formatWeight } from '@fitness-app/shared';
+import { HealthConnectCard } from '../../src/components/HealthConnectCard';
 import { RemindersCard } from '../../src/components/RemindersCard';
 import { useUnitSystem } from '../../src/hooks/useUnitSystem';
 import { ThemeToggle } from '../../src/components/ThemeToggle';
@@ -192,6 +193,8 @@ export default function ProfileScreen() {
           </Card>
 
           <RemindersCard />
+
+          <HealthConnectCard />
 
           <Card className="bg-primary-50 dark:bg-primary-900/30">
             <Text variant="subtitle" className="text-primary-800 dark:text-primary-200">

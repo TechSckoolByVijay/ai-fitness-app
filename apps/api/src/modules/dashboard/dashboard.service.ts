@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { DEFAULT_STEPS_TARGET } from '@fitness-app/shared';
 import type { DashboardHistory, DashboardToday } from '@fitness-app/shared';
 import { toDateOnly } from '../daily-summary';
 
@@ -76,7 +77,9 @@ export async function getTodayDashboard(prisma: PrismaClient, userId: string): P
     // wired into any Phase 1 route — null here means "not connected yet",
     // not "zero", and the mobile UI should render an empty/placeholder state.
     steps: summary?.steps ?? null,
-    stepsTarget: null,
+    // A conventional default, surfaced only once there is step data to show
+    // it against — an empty ring against a goal the user never set is noise.
+    stepsTarget: summary?.steps != null ? DEFAULT_STEPS_TARGET : null,
     sleepDurationMin: summary?.sleepDurationMin ?? null,
     activeCalories: summary ? Number(summary.activeCalories) : 0,
     exerciseDurationMin: summary?.exerciseDurationMin ?? 0,
