@@ -1,6 +1,9 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Alert, Platform } from 'react-native';
 
+/** Shared by the camera and library paths so the two can't drift apart. */
+const PHOTO_QUALITY = 0.7;
+
 /** expo-image-picker's `base64` result is always JPEG-encoded regardless of source format (documented behavior). */
 function toDataUri(base64: string): string {
   return `data:image/jpeg;base64,${base64}`;
@@ -13,10 +16,11 @@ async function captureFromCamera(): Promise<string | null> {
     return null;
   }
 
-  // 0.5 quality keeps the upload small/fast without visibly hurting the
-  // model's ability to identify food — this is a vision API call, not a
-  // photo you'd zoom into.
-  const result = await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true, mediaTypes: ['images'] });
+  // 0.7 rather than 0.5: telling a chapati from a paratha, or reading the
+  // visible ingredients in a curry, is exactly the fine detail that heavier
+  // JPEG compression destroys. Still well under the API's 8MB body cap
+  // (see app.ts) even with base64 overhead.
+  const result = await ImagePicker.launchCameraAsync({ quality: PHOTO_QUALITY, base64: true, mediaTypes: ['images'] });
   if (result.canceled || !result.assets?.[0]?.base64) return null;
   return toDataUri(result.assets[0].base64);
 }
@@ -28,7 +32,7 @@ async function captureFromLibrary(): Promise<string | null> {
     return null;
   }
 
-  const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.5, base64: true, mediaTypes: ['images'] });
+  const result = await ImagePicker.launchImageLibraryAsync({ quality: PHOTO_QUALITY, base64: true, mediaTypes: ['images'] });
   if (result.canceled || !result.assets?.[0]?.base64) return null;
   return toDataUri(result.assets[0].base64);
 }

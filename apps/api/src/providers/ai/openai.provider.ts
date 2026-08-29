@@ -158,7 +158,11 @@ For each distinct physical activity the user describes (walking, running, cyclin
 
 CRITICAL: you must NEVER compute or state calories burned for an exercise event — that number is always calculated separately by a deterministic formula from the activity, duration, and the user's weight, never by you. Only extract the facts (activity, duration, steps, distance, intensity).`;
 
-const PHOTO_INSTRUCTION = `The user has sent a PHOTO instead of (or alongside) a text description. Identify every distinct food item visible in the photo as its own item, following the same naming/quantity/confidence rules as the text case above. Estimate each quantity/weight from typical portion sizes and visual scale relative to the plate/container — never leave quantity or unit blank. Confidence should reflect how clearly each item is visually identifiable, using the same 0-1 calibration described above (a clearly-recognizable specific dish is high; something partially obscured, a generic-looking gravy/curry with no visible identifying ingredient, or a food you're genuinely unsure of is medium or low — never guess a specific name you can't actually see support for in the image). If the photo is not of food at all (e.g. blurry, unrelated), return a single low-confidence item named "unclear photo" rather than fabricating a dish.`;
+const PHOTO_INSTRUCTION = `The user has sent a PHOTO instead of (or alongside) a text description. Identify every distinct food item visible in the photo as its own item, following the same naming/quantity/confidence rules as the text case above. Estimate each quantity/weight from typical portion sizes and visual scale relative to the plate/container — never leave quantity or unit blank. Confidence should reflect how clearly each item is visually identifiable, using the same 0-1 calibration described above (a clearly-recognizable specific dish is high; something partially obscured, a generic-looking gravy/curry with no visible identifying ingredient, or a food you're genuinely unsure of is medium or low — never guess a specific name you can't actually see support for in the image). If the photo is not of food at all (e.g. blurry, unrelated), return a single low-confidence item named "unclear photo" rather than fabricating a dish.
+
+Most users of this app eat primarily Indian food, and generic labels like "flatbread", "curry" or "stew" are far less useful to them than the specific dish name. When what you see matches a common Indian preparation, name it specifically — for example: chapati/roti, phulka, tandoori roti, naan, paratha (and stuffed variants like aloo/gobi/paneer paratha), puri, bhatura, dosa, uttapam, idli, vada, upma, poha, dal (tadka/fry/makhani), rajma, chole, sambar, rasam, khichdi, biryani, pulao, jeera rice, curd/dahi, raita, paneer dishes (butter masala, palak paneer, paneer tikka), chicken curry, butter chicken, egg curry, sabzi (bhindi, aloo gobi, baingan), poori-sabzi, thali, samosa, pakora, dhokla, halwa, kheer.
+
+A round, flat, dry-looking bread with light brown char spots cooked on a tawa is a chapati/roti — not a tortilla or pancake. Do not, however, force an Indian label onto food that clearly is not Indian, and keep applying the confidence calibration above: if you genuinely cannot tell which of several similar dishes it is, use the closest generic name at lower confidence rather than guessing a specific one.`;
 
 function buildCoachSystemPrompt(context: CoachContextInput): string {
   const budgetLine =
@@ -314,7 +318,7 @@ export class OpenAIProvider implements AIProvider {
     nowISO: string;
   }): Promise<HealthExtractionResult> {
     const userContent: Array<
-      { type: 'input_text'; text: string } | { type: 'input_image'; image_url: string; detail: 'low' | 'auto' }
+      { type: 'input_text'; text: string } | { type: 'input_image'; image_url: string; detail: 'low' | 'auto' | 'high' }
     > = [];
 
     if (imageBase64) {
@@ -322,10 +326,12 @@ export class OpenAIProvider implements AIProvider {
       if (text) {
         userContent.push({ type: 'input_text', text: `The user also said: "${text}"` });
       }
-      // "auto" lets the model pick higher detail when the image genuinely
-      // needs it (small items, crowded plate) — "low" is cheaper/faster but
-      // risks missing smaller items on a full thali-style plate.
-      userContent.push({ type: 'input_image', image_url: imageBase64, detail: 'auto' });
+      // "high" rather than "auto": identifying a specific flatbread or a
+      // curry by its visible ingredients is a fine-detail task, and "auto"
+      // was measurably under-resolving crowded thali-style plates. The extra
+      // image tokens are bounded per call and already covered by the
+      // per-user daily interpret cap (AI_DAILY_INTERPRET_LIMIT).
+      userContent.push({ type: 'input_image', image_url: imageBase64, detail: 'high' });
     } else {
       userContent.push({ type: 'input_text', text: `Current date/time (ISO): ${nowISO}\n\nWhat the user said: "${text}"` });
     }
