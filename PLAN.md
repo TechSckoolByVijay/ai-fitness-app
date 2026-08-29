@@ -1029,7 +1029,7 @@ Currently zero support — `grep` for `imperial|unitSystem|lbs` returns nothing.
   the moment rather than only in settings.
 - Default metric, user-switchable.
 
-## 4. Weight logging ruler slider
+## 4. Weight logging ruler slider — DONE (2026-08-29)
 
 `app/log-weight.tsx` is a plain TextField. Replace with a horizontal
 snap-to-tick ruler (big number above, drag left/right), per CalorieQ.
