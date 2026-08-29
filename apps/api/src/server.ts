@@ -7,14 +7,8 @@ async function main() {
   const env = loadEnv();
   const app = await buildApp(env);
 
-  try {
-    await app.listen({ port: env.PORT, host: '0.0.0.0' });
-    app.log.info(`Fitness Coach API ready (env: ${env.NODE_ENV})`);
-  } catch (err) {
-    app.log.error(err);
-    process.exit(1);
-  }
-
+  // Must happen BEFORE listen(): Fastify refuses addHook once the instance
+  // has started, and doing this afterwards crashed the container on boot.
   if (env.ENABLE_REMINDER_SCHEDULER) {
     // Runs in the API process rather than as a separate worker: at this
     // app's scale a second deployable is not worth the operational cost, and
@@ -26,7 +20,16 @@ async function main() {
       log: (message, meta) => app.log.info(meta ?? {}, message),
     });
     app.addHook('onClose', async () => stop());
-    app.log.info('Reminder scheduler started');
+  }
+
+  try {
+    await app.listen({ port: env.PORT, host: '0.0.0.0' });
+    app.log.info(
+      `Fitness Coach API ready (env: ${env.NODE_ENV}, reminder scheduler: ${env.ENABLE_REMINDER_SCHEDULER ? 'on' : 'off'})`,
+    );
+  } catch (err) {
+    app.log.error(err);
+    process.exit(1);
   }
 }
 
