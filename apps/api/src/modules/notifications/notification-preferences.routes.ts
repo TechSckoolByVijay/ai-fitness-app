@@ -1,5 +1,6 @@
 import {
   CreateNotificationPreferenceRequestSchema,
+  RegisterPushTokenRequestSchema,
   NotificationPreferencesResponseSchema,
   UpdateNotificationPreferenceRequestSchema,
 } from '@fitness-app/shared';
@@ -10,6 +11,7 @@ import {
   getNotificationPreferences,
   updateNotificationPreference,
 } from './notification-preferences.service';
+import { registerPushToken, unregisterPushToken } from './push-token.service';
 
 export async function notificationPreferencesRoutes(app: FastifyInstance) {
   app.get('/me/notification-preferences', { preHandler: app.authenticate }, async (request, reply) => {
@@ -41,6 +43,23 @@ export async function notificationPreferencesRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const result = await deleteNotificationPreference(app.prisma, request.user.sub, request.params.id);
       reply.send(NotificationPreferencesResponseSchema.parse(result));
+    },
+  );
+
+  // Registering a device is what moves reminder delivery from the phone's
+  // local scheduler to the server, so it survives a reinstall or a new phone.
+  app.post('/me/push-tokens', { preHandler: app.authenticate }, async (request, reply) => {
+    const body = RegisterPushTokenRequestSchema.parse(request.body);
+    await registerPushToken(app.prisma, request.user.sub, body);
+    reply.code(204).send();
+  });
+
+  app.delete<{ Params: { token: string } }>(
+    '/me/push-tokens/:token',
+    { preHandler: app.authenticate },
+    async (request, reply) => {
+      await unregisterPushToken(app.prisma, request.user.sub, decodeURIComponent(request.params.token));
+      reply.code(204).send();
     },
   );
 }

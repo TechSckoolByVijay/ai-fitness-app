@@ -16,7 +16,7 @@ import {
   useUpdateNotificationPreference,
 } from '../src/hooks/useNotificationPreferences';
 import { useRequireAuth } from '../src/hooks/useRequireAuth';
-import { syncScheduledReminders } from '../src/lib/notifications';
+import { syncReminderDelivery } from '../src/lib/notifications';
 
 const BUILT_IN_LABELS: Partial<Record<NotificationCategory, string>> = {
   water: 'Water',
@@ -134,7 +134,7 @@ export default function RemindersScreen() {
   // Any change to the list re-reconciles what the OS has scheduled.
   useEffect(() => {
     if (!preferences.data) return;
-    void syncScheduledReminders(preferences.data.preferences);
+    void syncReminderDelivery(preferences.data.preferences);
   }, [preferences.data]);
 
   const report = (err: unknown) =>

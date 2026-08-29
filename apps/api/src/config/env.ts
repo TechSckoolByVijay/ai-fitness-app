@@ -25,6 +25,12 @@ const EnvSchema = z.object({
   MOCK_HEALTH_DATA: envBoolean(true),
 
   /**
+   * Runs the in-process reminder scheduler. Off in tests, where ticks would
+   * fire against the shared test database at unpredictable moments.
+   */
+  ENABLE_REMINDER_SCHEDULER: envBoolean(true),
+
+  /**
    * Which real AI backend to use when MOCK_AI=false. Both backends can be
    * configured at once — this picks the active one, so switching is a
    * one-word edit and a restart rather than swapping credentials in and out

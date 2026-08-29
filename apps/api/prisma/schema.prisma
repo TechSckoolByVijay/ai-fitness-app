@@ -181,6 +181,7 @@ model User {
   frequentMeals           FrequentMeal[]
   favoriteFoods           FavoriteFood[]
   notificationPreferences NotificationPreference[]
+  pushTokens              PushToken[]
   healthIntegrations      HealthIntegration[]
   aiConversations         AiConversation[]
   feedback                UserFeedback[]
@@ -213,6 +214,9 @@ model Profile {
   targetWeightKg        Decimal?  @db.Decimal(5, 2)
   activityLevel         ActivityLevel?
   unitSystem            UnitSystem @default(metric)
+  /// IANA zone (e.g. "Asia/Kolkata"), captured from the device. Reminder
+  /// times are local wall-clock, so the server cannot fire them without it.
+  timeZone              String?
   wakeTime              String?
   targetSleepTime       String?
   waterTargetMl         Int?
@@ -491,6 +495,9 @@ model NotificationPreference {
   quietHoursStart String?
   quietHoursEnd   String?
   preferredTime   String?
+  /// The user's local date ("YYYY-MM-DD") this reminder last fired on.
+  /// Claimed with a conditional update so two API replicas cannot both send.
+  lastSentOn      String?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
@@ -500,6 +507,22 @@ model NotificationPreference {
   /// reminders of the same category (e.g. a lunch and a dinner nudge), so
   /// rows are addressed by id. A partial unique index still guarantees at
   /// most one built-in row per category per user.
+  @@index([userId])
+}
+
+/// An Expo push token for one installation. A user may have several (phone
+/// plus tablet), and a token can migrate between users on a shared device,
+/// so the token itself is unique rather than the user.
+model PushToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  token     String   @unique
+  platform  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 

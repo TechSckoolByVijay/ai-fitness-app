@@ -1,5 +1,7 @@
 import { buildApp } from './app';
 import { loadEnv } from './config/env';
+import { startReminderScheduler } from './modules/notifications/reminder-scheduler';
+import { ExpoPushProvider } from './providers/push/expo-push.provider';
 
 async function main() {
   const env = loadEnv();
@@ -11,6 +13,20 @@ async function main() {
   } catch (err) {
     app.log.error(err);
     process.exit(1);
+  }
+
+  if (env.ENABLE_REMINDER_SCHEDULER) {
+    // Runs in the API process rather than as a separate worker: at this
+    // app's scale a second deployable is not worth the operational cost, and
+    // the per-reminder claim in runReminderTick already makes it safe for
+    // more than one replica to tick concurrently.
+    const stop = startReminderScheduler({
+      prisma: app.prisma,
+      push: new ExpoPushProvider(),
+      log: (message, meta) => app.log.info(meta ?? {}, message),
+    });
+    app.addHook('onClose', async () => stop());
+    app.log.info('Reminder scheduler started');
   }
 }
 

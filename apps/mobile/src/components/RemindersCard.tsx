@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { useNotificationPreferences } from '../hooks/useNotificationPreferences';
-import { syncScheduledReminders } from '../lib/notifications';
+import { syncReminderDelivery } from '../lib/notifications';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 import { SkeletonBlock } from './ui/SkeletonBlock';
@@ -22,7 +22,7 @@ export function RemindersCard() {
 
   useEffect(() => {
     if (!preferences.data) return;
-    void syncScheduledReminders(preferences.data.preferences);
+    void syncReminderDelivery(preferences.data.preferences);
   }, [preferences.data]);
 
   const active = preferences.data?.preferences.filter((p) => p.enabled && p.preferredTime) ?? [];

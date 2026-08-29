@@ -1,5 +1,6 @@
 import type {
   CreateNotificationPreferenceRequest,
+  RegisterPushTokenRequest,
   NotificationPreferencesResponse,
   UpdateNotificationPreferenceRequest,
 } from '@fitness-app/shared';
@@ -29,4 +30,8 @@ export function deleteNotificationPreference(id: string) {
   return apiRequest<NotificationPreferencesResponse>(`/me/notification-preferences/${id}`, {
     method: 'DELETE',
   });
+}
+
+export function registerPushToken(input: RegisterPushTokenRequest) {
+  return apiRequest<void>('/me/push-tokens', { method: 'POST', body: input });
 }

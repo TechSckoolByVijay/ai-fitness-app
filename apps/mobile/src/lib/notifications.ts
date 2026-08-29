@@ -1,6 +1,8 @@
 import type { NotificationPreferenceDto } from '@fitness-app/shared';
+import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { registerPushToken } from '../api/notifications.api';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -67,21 +69,66 @@ async function ensureAndroidChannel(): Promise<void> {
  * category before (maybe) re-scheduling it, so toggling a reminder off, or
  * changing its time, never leaves a stale or duplicate notification behind.
  */
-export async function syncScheduledReminders(preferences: NotificationPreferenceDto[]): Promise<void> {
-  const granted = await requestNotificationPermissions();
-  if (!granted) return;
+/**
+ * Registers this device for server-sent reminders.
+ *
+ * Returns true when the server can now deliver, which is what lets the
+ * caller stop scheduling locally. The device timezone goes up with the
+ * token: a reminder time is local wall-clock, so the server cannot fire
+ * "21:00" without knowing where the user is.
+ */
+export async function registerForPushNotifications(): Promise<boolean> {
+  try {
+    const granted = await requestNotificationPermissions();
+    if (!granted) return false;
 
-  await ensureAndroidChannel();
+    await ensureAndroidChannel();
 
-  // Reminders can now be deleted, so reconciling only over the rows we were
-  // handed would leave a deleted one firing forever. Cancel everything this
-  // app scheduled, then re-add what should exist.
+    // Required for a push token on a real build; absent in some dev contexts,
+    // in which case Expo can still resolve the project itself.
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId ?? undefined;
+
+    const { data: token } = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+    if (!token) return false;
+
+    await registerPushToken({
+      token,
+      platform: Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web',
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+    return true;
+  } catch {
+    // Expo Go without a project id, a simulator, or no network — all mean
+    // "server delivery unavailable", which the local fallback covers.
+    return false;
+  }
+}
+
+/** Removes every locally-scheduled reminder this app created. */
+export async function cancelLocalReminders(): Promise<void> {
   const scheduled = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
   for (const item of scheduled) {
     if (item.identifier.startsWith('reminder-')) {
       await Notifications.cancelScheduledNotificationAsync(item.identifier).catch(() => {});
     }
   }
+}
+
+/**
+ * Reconciles OS-scheduled local notifications with the user's saved
+ * preferences.
+ *
+ * This is the FALLBACK path. When the device is registered for push, the
+ * server owns delivery and local schedules are cleared instead — otherwise
+ * every reminder would arrive twice, once from each source.
+ */
+export async function syncScheduledReminders(preferences: NotificationPreferenceDto[]): Promise<void> {
+  const granted = await requestNotificationPermissions();
+  if (!granted) return;
+
+  await ensureAndroidChannel();
+  await cancelLocalReminders();
 
   for (const pref of preferences) {
     if (!pref.enabled || !pref.preferredTime) continue;
@@ -105,4 +152,21 @@ export async function syncScheduledReminders(preferences: NotificationPreference
       },
     });
   }
+}
+
+/**
+ * Points reminder delivery at whichever mechanism is actually available.
+ *
+ * Server push is preferred: it survives a reinstall, a new phone, and
+ * cleared app data, none of which a locally-scheduled notification does.
+ * Local scheduling stays as the fallback so a user who declines push, or
+ * runs in a context without a push token, still gets reminded.
+ */
+export async function syncReminderDelivery(preferences: NotificationPreferenceDto[]): Promise<void> {
+  const usingPush = await registerForPushNotifications();
+  if (usingPush) {
+    await cancelLocalReminders();
+    return;
+  }
+  await syncScheduledReminders(preferences);
 }
