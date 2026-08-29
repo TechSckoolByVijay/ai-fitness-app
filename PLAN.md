@@ -1086,6 +1086,26 @@ Those live in `HealthMetric` only, and logged entries stay authoritative.
 Needs a dev/production build — the native module is absent in Expo Go, where
 the card states that plainly rather than offering a button that does nothing.
 
+## Deployment (2026-08-29)
+
+All parity work plus push notifications and Health Connect deployed to Azure
+Container Apps. Five migrations applied automatically at container start.
+
+**Incident — API down ~25 minutes.** The first deploy crashed on boot:
+`server.ts` registered the reminder scheduler's `onClose` hook *after*
+`app.listen()`, which Fastify rejects outright
+(`FST_ERR_INSTANCE_ALREADY_LISTENING`). Migrations had applied cleanly; only
+the boot sequence was wrong.
+
+The whole suite passed against code that could not start, because every
+integration test uses `app.inject()` and never boots the HTTP server.
+`test/integration/server-boot.test.ts` now calls `listen()` for real and
+mirrors `server.ts`'s ordering — verified to fail with the exact production
+error when the hook is moved back after listen.
+
+Takeaway: `inject()`-only coverage cannot catch startup-ordering faults. Any
+future change to `server.ts` should be reflected in the boot test.
+
 ## Rejected
 
 **Home + navigation restyle (5 tabs -> 3 tabs + centre FAB).** Considered
