@@ -16,6 +16,7 @@ import { useDashboard, useDashboardHistory } from '../../src/hooks/useDashboard'
 import { useInsights } from '../../src/hooks/useInsights';
 import { useMe } from '../../src/hooks/useMe';
 import { getCaloriePace } from '../../src/utils/calorieProgress';
+import { getCalorieStatusTone, TONE_STYLES } from '../../src/utils/statusTone';
 import { computeLoggingStreak } from '../../src/utils/loggingStreak';
 
 const STREAK_WINDOW_DAYS = 30;
@@ -46,6 +47,20 @@ export default function HomeScreen() {
       ? getCaloriePace(primaryGoal, dashboard.data.caloriesConsumed, dashboard.data.calorieTarget)
       : null;
 
+  // The hero's colour is the primary signal that something needs attention,
+  // so it's derived from the numbers rather than hardcoded to the brand green.
+  const calorieTone = getCalorieStatusTone(
+    primaryGoal,
+    dashboard.data?.caloriesConsumed ?? 0,
+    dashboard.data?.calorieTarget ?? null,
+    caloriePace?.expectedByNow ?? 0,
+  );
+  const toneStyle = TONE_STYLES[calorieTone];
+  const caloriesOver =
+    dashboard.data?.calorieTarget != null
+      ? Math.round(dashboard.data.caloriesConsumed - dashboard.data.calorieTarget)
+      : 0;
+
   const historyDays = history.data?.days ?? [];
   const streak = computeLoggingStreak(historyDays);
   const weekDays = historyDays.slice(-7).map((d) => ({ date: d.date, logged: d.caloriesConsumed > 0 }));
@@ -75,10 +90,20 @@ export default function HomeScreen() {
           </View>
         ) : dashboard.data ? (
           <>
-            <View className="rounded-3xl bg-primary-500 p-6 shadow-md shadow-primary-500/30">
-              <Text className="text-[13px] font-bold uppercase tracking-widest text-white/80">
-                Calories today
-              </Text>
+            <View className={`rounded-3xl p-6 shadow-md ${toneStyle.heroContainer}`}>
+              <View className="flex-row items-center justify-between">
+                <Text className="text-[13px] font-bold uppercase tracking-widest text-white/80">
+                  Calories today
+                </Text>
+                {/* Colour alone can't carry this — the badge states the
+                    status in words and a glyph too. */}
+                <View className="flex-row items-center gap-1.5 rounded-full bg-black/20 px-2.5 py-1">
+                  <Text className="text-[12px] font-bold text-white">{toneStyle.icon}</Text>
+                  <Text className="text-[12px] font-bold uppercase tracking-wide text-white">
+                    {toneStyle.label}
+                  </Text>
+                </View>
+              </View>
               <View className="mt-2 flex-row items-baseline gap-2">
                 <Text className="text-6xl font-extrabold tracking-tight text-white">
                   {Math.round(dashboard.data.caloriesConsumed)}
@@ -91,10 +116,11 @@ export default function HomeScreen() {
                 <ProgressBar
                   value={dashboard.data.caloriesConsumed}
                   target={dashboard.data.calorieTarget}
-                  colorClassName="bg-white"
-                  trackClassName="bg-white/25"
+                  colorClassName={toneStyle.heroBar}
+                  trackClassName={toneStyle.heroTrack}
                   heightClassName="h-3.5"
-                  markerClassName="bg-primary-900/60"
+                  markerClassName={toneStyle.heroMarker}
+                  overflowClassName="bg-danger-950/70"
                   markerPct={
                     caloriePace && dashboard.data.calorieTarget
                       ? (caloriePace.expectedByNow / dashboard.data.calorieTarget) * 100
@@ -102,7 +128,15 @@ export default function HomeScreen() {
                   }
                 />
               </View>
-              {caloriePace ? (
+              {/* Going past the whole day's budget is the one case that
+                  outranks pace, so it gets said plainly instead of being
+                  folded into a "you're ahead of pace" phrasing. */}
+              {calorieTone === 'critical' ? (
+                <Text className="mt-2.5 text-[15px] font-bold text-white">
+                  {caloriesOver} kcal over today&apos;s budget.
+                  <Text className="text-[12px] font-medium text-white/70"> · estimated</Text>
+                </Text>
+              ) : caloriePace ? (
                 <Text className="mt-2.5 text-[14px] font-semibold text-white/90">
                   {caloriePace.message}
                   <Text className="text-[12px] text-white/60"> · estimated</Text>
