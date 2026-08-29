@@ -16,6 +16,11 @@ export async function recalculateProfileTargets(prisma: PrismaClient, userId: st
     prisma.goal.findFirst({ where: { userId, isPrimary: true } }),
   ]);
 
+  // A user-set budget is not a stale value to be refreshed. Logging a new
+  // weight, or editing body info, would otherwise silently discard the
+  // target they deliberately chose.
+  if (profile?.useCustomTargets) return;
+
   const targets = calculateTargets({
     sex: profile?.sex ?? null,
     dateOfBirth: profile?.dateOfBirth ?? null,

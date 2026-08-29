@@ -2,6 +2,7 @@ import type {
   DeleteAccountRequest,
   MeResponse,
   UpdateAllergiesRequest,
+  UpdateBudgetRequest,
   UpdateDietRequest,
   UpdateGoalsRequest,
   UpdateHealthConditionsRequest,
@@ -39,4 +40,8 @@ export function completeOnboarding() {
 
 export function deleteAccount(input: DeleteAccountRequest) {
   return apiRequest<void>('/me', { method: 'DELETE', body: input });
+}
+
+export function updateBudget(input: UpdateBudgetRequest) {
+  return apiRequest<MeResponse>('/me/budget', { method: 'PATCH', body: input });
 }

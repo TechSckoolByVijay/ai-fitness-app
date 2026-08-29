@@ -1034,7 +1034,7 @@ Currently zero support — `grep` for `imperial|unitSystem|lbs` returns nothing.
 `app/log-weight.tsx` is a plain TextField. Replace with a horizontal
 snap-to-tick ruler (big number above, drag left/right), per CalorieQ.
 
-## 5. Calorie budget screen
+## 5. Calorie budget screen — DONE (2026-08-29)
 
 New — we compute targets in `calorie-targets.ts` with no override path.
 

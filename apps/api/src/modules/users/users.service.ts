@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import type { MeResponse, UpdateProfileRequest } from '@fitness-app/shared';
 import { NotFoundError, UnauthorizedError, ValidationError } from '../../lib/errors';
+import { storedMacroSplit } from './budget.service';
 import { verifyPassword } from '../auth/password';
 import { recalculateProfileTargets } from '../onboarding/recalculate-targets';
 
@@ -40,6 +41,12 @@ export async function getMe(prisma: PrismaClient, userId: string): Promise<MeRes
       // Column is NOT NULL with a default, but the profile row itself may
       // not exist yet mid-onboarding.
       unitSystem: user.profile?.unitSystem ?? 'metric',
+      useCustomTargets: user.profile?.useCustomTargets ?? false,
+      macros: storedMacroSplit({
+        carbTargetPct: user.profile?.carbTargetPct ?? null,
+        fatTargetPct: user.profile?.fatTargetPct ?? null,
+        proteinTargetPct: user.profile?.proteinTargetPct ?? null,
+      }),
       waterTargetMl: user.profile?.waterTargetMl ?? null,
       calorieTarget: user.profile?.calorieTarget ?? null,
       proteinTarget: user.profile?.proteinTarget ?? null,

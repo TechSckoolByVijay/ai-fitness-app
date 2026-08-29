@@ -189,3 +189,122 @@ describe('unit system preference', () => {
     expect(after.json().profile.currentWeightKg).toBe(70.5);
   });
 });
+
+describe('custom calorie budget', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  const MACROS = { carbPct: 40, fatPct: 30, proteinPct: 30 };
+
+  async function onboard(token: string) {
+    await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/profile',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        dateOfBirth: '1995-06-15',
+        sex: 'male',
+        heightCm: 175,
+        currentWeightKg: 75,
+        activityLevel: 'moderate',
+      },
+    });
+  }
+
+  it('refuses a target below the 1200 kcal floor', async () => {
+    const token = await registerAndGetToken(app, 'budget-floor');
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/budget',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { mode: 'custom', calorieTarget: 800, macros: MACROS },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a macro split that does not add up to 100', async () => {
+    const token = await registerAndGetToken(app, 'budget-macros');
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/budget',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { mode: 'custom', calorieTarget: 2000, macros: { carbPct: 50, fatPct: 30, proteinPct: 30 } },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('derives the protein target from the macro split', async () => {
+    const token = await registerAndGetToken(app, 'budget-protein');
+    await onboard(token);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/budget',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { mode: 'custom', calorieTarget: 2000, macros: MACROS },
+    });
+    // 30% of 2000 kcal = 600 kcal of protein at 4 kcal/g = 150g.
+    expect(response.json().profile.proteinTarget).toBe(150);
+    expect(response.json().profile.useCustomTargets).toBe(true);
+  });
+
+  it('does not let a new weight log silently overwrite a custom budget', async () => {
+    const token = await registerAndGetToken(app, 'budget-persist');
+    await onboard(token);
+
+    await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/budget',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { mode: 'custom', calorieTarget: 1800, macros: MACROS },
+    });
+
+    // Logging a weight recalculates targets — the whole reason useCustomTargets exists.
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/weight-entries',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { weightKg: 80, loggedAt: new Date().toISOString() },
+    });
+
+    const me = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(me.json().profile.calorieTarget).toBe(1800);
+  });
+
+  it('hands the target back to the calculator when switched to standard', async () => {
+    const token = await registerAndGetToken(app, 'budget-standard');
+    await onboard(token);
+
+    await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/budget',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { mode: 'custom', calorieTarget: 1800, macros: MACROS },
+    });
+
+    const restored = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/budget',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { mode: 'standard' },
+    });
+
+    expect(restored.json().profile.useCustomTargets).toBe(false);
+    // Recalculated from the profile, so no longer the hand-set 1800.
+    expect(restored.json().profile.calorieTarget).not.toBe(1800);
+    expect(restored.json().profile.calorieTarget).toBeGreaterThan(1200);
+  });
+});

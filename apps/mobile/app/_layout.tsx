@@ -96,6 +96,10 @@ export default function RootLayout() {
             options={{ presentation: 'modal', headerShown: true, title: 'Log sleep' }}
           />
           <Stack.Screen
+            name="budget"
+            options={{ presentation: 'modal', headerShown: true, title: 'Calorie budget' }}
+          />
+          <Stack.Screen
             name="units"
             options={{ presentation: 'modal', headerShown: true, title: 'Units' }}
           />

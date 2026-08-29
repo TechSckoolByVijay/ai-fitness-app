@@ -7,6 +7,7 @@ import {
   HealthConditionTypeSchema,
   SexSchema,
 } from './enums.schema';
+import { MacroSplitSchema } from './budget.schema';
 import { UnitSystemSchema } from './units.schema';
 
 export const UpdateProfileRequestSchema = z.object({
@@ -62,6 +63,8 @@ export const ProfileDtoSchema = z.object({
   targetWeightKg: z.number().nullable(),
   activityLevel: ActivityLevelSchema.nullable(),
   unitSystem: UnitSystemSchema,
+  useCustomTargets: z.boolean(),
+  macros: MacroSplitSchema,
   waterTargetMl: z.number().nullable(),
   calorieTarget: z.number().nullable(),
   proteinTarget: z.number().nullable(),

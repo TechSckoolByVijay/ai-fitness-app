@@ -169,6 +169,19 @@ export default function ProfileScreen() {
           <Card>
             <View className="flex-row items-center justify-between">
               <View>
+                <Text variant="subtitle">Calorie budget</Text>
+                <Text variant="caption" className="text-gray-500 dark:text-gray-400">
+                  {me.data.profile.calorieTarget ?? '—'} kcal/day ·{' '}
+                  {me.data.profile.useCustomTargets ? 'set by you' : 'calculated'}
+                </Text>
+              </View>
+              <Button label="Change" variant="ghost" onPress={() => router.push('/budget')} />
+            </View>
+          </Card>
+
+          <Card>
+            <View className="flex-row items-center justify-between">
+              <View>
                 <Text variant="subtitle">Units</Text>
                 <Text variant="caption" className="text-gray-500 dark:text-gray-400">
                   {unitSystem === 'imperial' ? 'Imperial (lb, ft/in)' : 'Metric (kg, cm)'}

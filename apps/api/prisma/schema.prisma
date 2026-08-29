@@ -218,6 +218,15 @@ model Profile {
   waterTargetMl         Int?
   calorieTarget         Int?
   proteinTarget         Int?
+  /// When true the user has set their own calorie/macro budget and
+  /// recalculateProfileTargets must not overwrite it. Logging a new weight
+  /// would otherwise silently discard what they chose.
+  useCustomTargets      Boolean @default(false)
+  /// Macro split as whole percentages of the calorie target. Null until the
+  /// user opens the Budget screen; the app falls back to a sensible default.
+  carbTargetPct         Int?
+  fatTargetPct          Int?
+  proteinTargetPct      Int?
   profileCompletionJson Json?
   onboardingCompletedAt DateTime?
   createdAt             DateTime  @default(now())
