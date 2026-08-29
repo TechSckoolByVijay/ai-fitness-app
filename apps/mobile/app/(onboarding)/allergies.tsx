@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { OnboardingScaffold } from '../../src/components/onboarding/OnboardingScaffold';
+import { nextStepRoute, stepNumber } from '../../src/components/onboarding/steps';
 import { Button } from '../../src/components/ui/Button';
 import { Chip } from '../../src/components/ui/Chip';
 import { TextField } from '../../src/components/ui/TextField';
@@ -42,12 +43,12 @@ export default function AllergiesStep() {
           otherText: type === 'other' ? otherText || undefined : undefined,
         }));
     await updateAllergies.mutateAsync({ allergies });
-    router.push('/health');
+    router.push(nextStepRoute('allergies'));
   };
 
   return (
     <OnboardingScaffold
-      step={5}
+      step={stepNumber('allergies')}
       title="Any allergies or intolerances?"
       subtitle="This helps us keep suggestions safe for you. Select all that apply."
       footer={

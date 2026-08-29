@@ -1043,7 +1043,7 @@ New — we compute targets in `calorie-targets.ts` with no override path.
 - Keep our own 1200 kcal floor (PRODUCT.md principle 7) rather than
   CalorieQ's 800 lower bound.
 
-## 6. Onboarding slim-down
+## 6. Onboarding slim-down — DONE (2026-08-29)
 
 Currently 7 screens, with `body-info.tsx` asking 13 decisions on one screen
 and `goal.tsx` offering 7 goals.

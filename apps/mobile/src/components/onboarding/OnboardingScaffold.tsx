@@ -1,7 +1,6 @@
 import { ScrollView, View } from 'react-native';
 import { Text } from '../ui/Text';
-
-const TOTAL_STEPS = 7;
+import { TOTAL_ONBOARDING_STEPS } from './steps';
 
 interface OnboardingScaffoldProps {
   step: number;
@@ -15,18 +14,16 @@ export function OnboardingScaffold({ step, title, subtitle, children, footer }: 
   return (
     <View className="flex-1 bg-surface-light dark:bg-surface-dark">
       <View className="px-6 pt-6">
-        <View className="h-1.5 w-full flex-row gap-1.5">
-          {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-            <View
-              key={i}
-              className={`h-full flex-1 rounded-full ${
-                i < step ? 'bg-primary-500' : 'bg-muted-light dark:bg-muted-dark'
-              }`}
-            />
-          ))}
+        {/* A continuous bar rather than one segment per step — at eleven
+            steps the segments become hairlines and read as noise. */}
+        <View className="h-1.5 w-full overflow-hidden rounded-full bg-muted-light dark:bg-muted-dark">
+          <View
+            className="h-full rounded-full bg-primary-500"
+            style={{ width: `${(step / TOTAL_ONBOARDING_STEPS) * 100}%` }}
+          />
         </View>
         <Text variant="caption" className="mt-2">
-          Step {step} of {TOTAL_STEPS}
+          Step {step} of {TOTAL_ONBOARDING_STEPS}
         </Text>
       </View>
 

@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { OnboardingScaffold } from '../../src/components/onboarding/OnboardingScaffold';
+import { nextStepRoute, stepNumber } from '../../src/components/onboarding/steps';
 import { Button } from '../../src/components/ui/Button';
 import { Chip } from '../../src/components/ui/Chip';
 import { Text } from '../../src/components/ui/Text';
@@ -51,7 +52,7 @@ export default function HealthStep() {
 
   return (
     <OnboardingScaffold
-      step={6}
+      step={stepNumber('health')}
       title="Anything we should know?"
       subtitle="Is there anything about your health we should consider when giving recommendations? This is completely optional and only used for personalization and safety."
       footer={

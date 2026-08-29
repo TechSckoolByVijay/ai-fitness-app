@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { OnboardingScaffold } from '../../src/components/onboarding/OnboardingScaffold';
+import { nextStepRoute, stepNumber } from '../../src/components/onboarding/steps';
 import { Button } from '../../src/components/ui/Button';
 import { Chip } from '../../src/components/ui/Chip';
 import { TextField } from '../../src/components/ui/TextField';
@@ -24,12 +25,12 @@ export default function DietStep() {
   const handleNext = async () => {
     if (!dietType) return;
     await updateDiet.mutateAsync({ dietType, otherText: dietType === 'other' ? otherText : undefined });
-    router.push('/allergies');
+    router.push(nextStepRoute('diet'));
   };
 
   return (
     <OnboardingScaffold
-      step={4}
+      step={stepNumber('diet')}
       title="What do you usually eat?"
       subtitle="This helps us suggest culturally appropriate meals."
       footer={<Button label="Continue" onPress={handleNext} disabled={!dietType} loading={updateDiet.isPending} />}

@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
 import { OnboardingScaffold } from '../../src/components/onboarding/OnboardingScaffold';
+import { nextStepRoute, stepNumber } from '../../src/components/onboarding/steps';
 import { Button } from '../../src/components/ui/Button';
 import { Text } from '../../src/components/ui/Text';
 import { useMe } from '../../src/hooks/useMe';
@@ -10,10 +11,10 @@ export default function AccountStep() {
 
   return (
     <OnboardingScaffold
-      step={1}
+      step={stepNumber('account')}
       title={`Welcome${me.data?.name ? `, ${me.data.name.split(' ')[0]}` : ''} 👋`}
       subtitle="Let's set up your profile — this only takes a couple of minutes, and you can always change things later."
-      footer={<Button label="Get started" onPress={() => router.push('/body-info')} />}
+      footer={<Button label="Get started" onPress={() => router.push(nextStepRoute('account'))} />}
     >
       <View className="gap-3">
         <Text variant="body">We&apos;ll ask a few quick questions about:</Text>
