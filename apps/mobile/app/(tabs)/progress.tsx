@@ -1,4 +1,4 @@
-import { kgToDisplayWeight, kgToLb, UNIT_LABELS } from '@fitness-app/shared';
+import { formatWeight, kgToDisplayWeight, kgToLb, UNIT_LABELS } from '@fitness-app/shared';
 import { router } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 import { BmiCard } from '../../src/components/BmiCard';
@@ -10,6 +10,7 @@ import { SkeletonBlock } from '../../src/components/ui/SkeletonBlock';
 import { Text } from '../../src/components/ui/Text';
 import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
 import { useUnitSystem } from '../../src/hooks/useUnitSystem';
+import { projectGoalDate } from '../../src/utils/weightProjection';
 import { useDashboardHistory } from '../../src/hooks/useDashboard';
 import { useMe } from '../../src/hooks/useMe';
 import { useSleepEntries } from '../../src/hooks/useSleepEntries';
@@ -82,6 +83,8 @@ export default function ProgressScreen() {
   // The chart's y-axis has to be in the same unit as its formatted labels,
   // so points are converted from stored kg before plotting.
   const weightAxisValue = (kg: number) => (unitSystem === 'imperial' ? kgToLb(kg) : kg);
+  const goalWeightKg = me.data?.profile.targetWeightKg ?? null;
+  const projection = projectGoalDate(weightEntries, goalWeightKg);
   const weightChartPoints = [...weightEntries]
     .slice(0, 15)
     .reverse()
@@ -189,6 +192,41 @@ export default function ProgressScreen() {
                 </Text>
               ) : null}
             </View>
+            {goalWeightKg !== null ? (
+              <View className="flex-row gap-3">
+                <View className="flex-1 rounded-2xl bg-muted-light p-3 dark:bg-surface-dark">
+                  <Text variant="caption" className="text-gray-500 dark:text-gray-400">
+                    Goal weight
+                  </Text>
+                  <Text variant="body" className="mt-0.5 font-bold">
+                    {formatWeight(goalWeightKg, unitSystem)}
+                  </Text>
+                </View>
+                <View className="flex-1 rounded-2xl bg-muted-light p-3 dark:bg-surface-dark">
+                  <Text variant="caption" className="text-gray-500 dark:text-gray-400">
+                    {projection.kind === 'reached' ? 'Status' : 'Reach goal'}
+                  </Text>
+                  {/* Only ever states a date the logged data actually
+                      supports — see projectGoalDate for why it declines. */}
+                  <Text
+                    variant="body"
+                    className={
+                      projection.kind === 'on_track' || projection.kind === 'reached'
+                        ? 'mt-0.5 font-bold text-primary-600 dark:text-primary-400'
+                        : 'mt-0.5 font-bold text-gray-500 dark:text-gray-400'
+                    }
+                  >
+                    {projection.kind === 'on_track'
+                      ? formatDate(projection.reachDate.toISOString())
+                      : projection.kind === 'reached'
+                        ? 'Reached'
+                        : projection.kind === 'no_estimate'
+                          ? 'Not yet trending'
+                          : 'Need more logs'}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
             {weightChartPoints.length >= 2 ? (
               <LineChart
                 points={weightChartPoints.map((p) => ({ ...p, value: weightAxisValue(p.value) }))}

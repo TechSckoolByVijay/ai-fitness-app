@@ -1058,7 +1058,7 @@ Sex and date of birth are already collected and already feed BMR/TDEE via
 `calorie-targets.ts`, so age/sex-appropriate targets already work — this is
 an input-UX problem only.
 
-## 7. Weight progress card
+## 7. Weight progress card — DONE (2026-08-29)
 
 `BmiCard` already matches CalorieQ's BMI scale closely. Missing is their
 Weight Progress card: goal weight, projected reach date, and the trend line
