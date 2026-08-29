@@ -135,3 +135,57 @@ describe('editing onboarding answers after completion', () => {
     expect(addCondition.json().healthConditions).toEqual([{ type: 'diabetes', otherText: null }]);
   });
 });
+
+describe('unit system preference', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('defaults to metric and round-trips a switch to imperial', async () => {
+    const token = await registerAndGetToken(app, 'units-pref');
+
+    const before = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(before.json().profile.unitSystem).toBe('metric');
+
+    const patched = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/profile',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { unitSystem: 'imperial' },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json().profile.unitSystem).toBe('imperial');
+  });
+
+  it('never converts stored measurements when the display unit changes', async () => {
+    const token = await registerAndGetToken(app, 'units-storage');
+
+    await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/profile',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { heightCm: 170, currentWeightKg: 70.5 },
+    });
+
+    const after = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me/profile',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { unitSystem: 'imperial' },
+    });
+
+    // Storage stays metric — imperial is a display concern only.
+    expect(after.json().profile.heightCm).toBe(170);
+    expect(after.json().profile.currentWeightKg).toBe(70.5);
+  });
+});

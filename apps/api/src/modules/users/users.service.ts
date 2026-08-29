@@ -37,6 +37,9 @@ export async function getMe(prisma: PrismaClient, userId: string): Promise<MeRes
       currentWeightKg: toNumber(user.profile?.currentWeightKg),
       targetWeightKg: toNumber(user.profile?.targetWeightKg),
       activityLevel: user.profile?.activityLevel ?? null,
+      // Column is NOT NULL with a default, but the profile row itself may
+      // not exist yet mid-onboarding.
+      unitSystem: user.profile?.unitSystem ?? 'metric',
       waterTargetMl: user.profile?.waterTargetMl ?? null,
       calorieTarget: user.profile?.calorieTarget ?? null,
       proteinTarget: user.profile?.proteinTarget ?? null,
@@ -68,6 +71,7 @@ export async function updateProfile(
       ...(input.currentWeightKg !== undefined ? { currentWeightKg: input.currentWeightKg } : {}),
       ...(input.targetWeightKg !== undefined ? { targetWeightKg: input.targetWeightKg } : {}),
       ...(input.activityLevel !== undefined ? { activityLevel: input.activityLevel } : {}),
+      ...(input.unitSystem !== undefined ? { unitSystem: input.unitSystem } : {}),
     },
     create: {
       userId,
@@ -77,6 +81,7 @@ export async function updateProfile(
       currentWeightKg: input.currentWeightKg,
       targetWeightKg: input.targetWeightKg,
       activityLevel: input.activityLevel,
+      unitSystem: input.unitSystem,
     },
   });
 

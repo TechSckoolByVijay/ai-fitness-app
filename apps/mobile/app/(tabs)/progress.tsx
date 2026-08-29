@@ -1,3 +1,4 @@
+import { kgToDisplayWeight, kgToLb, UNIT_LABELS } from '@fitness-app/shared';
 import { router } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 import { BmiCard } from '../../src/components/BmiCard';
@@ -8,6 +9,7 @@ import { LineChart } from '../../src/components/ui/LineChart';
 import { SkeletonBlock } from '../../src/components/ui/SkeletonBlock';
 import { Text } from '../../src/components/ui/Text';
 import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
+import { useUnitSystem } from '../../src/hooks/useUnitSystem';
 import { useDashboardHistory } from '../../src/hooks/useDashboard';
 import { useMe } from '../../src/hooks/useMe';
 import { useSleepEntries } from '../../src/hooks/useSleepEntries';
@@ -76,6 +78,10 @@ export default function ProgressScreen() {
   const heightCm = me.data?.profile.heightCm ?? null;
   const currentWeightKg = latestWeight?.weightKg ?? me.data?.profile.currentWeightKg ?? null;
 
+  const unitSystem = useUnitSystem();
+  // The chart's y-axis has to be in the same unit as its formatted labels,
+  // so points are converted from stored kg before plotting.
+  const weightAxisValue = (kg: number) => (unitSystem === 'imperial' ? kgToLb(kg) : kg);
   const weightChartPoints = [...weightEntries]
     .slice(0, 15)
     .reverse()
@@ -168,10 +174,10 @@ export default function ProgressScreen() {
           <Card className="gap-3">
             <View className="flex-row flex-wrap items-baseline gap-1.5">
               <Text className="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-gray-50">
-                {latestWeight.weightKg}
+                {kgToDisplayWeight(latestWeight.weightKg, unitSystem)}
               </Text>
               <Text variant="body" className="font-bold">
-                kg
+                {UNIT_LABELS[unitSystem].weight}
               </Text>
               {weightDelta !== null ? (
                 <Text
@@ -179,16 +185,18 @@ export default function ProgressScreen() {
                   className={weightDelta <= 0 ? 'font-bold text-primary-600 dark:text-primary-400' : 'font-bold text-amber-600 dark:text-amber-400'}
                 >
                   {weightDelta > 0 ? '+' : ''}
-                  {weightDelta} kg since last log
+                  {kgToDisplayWeight(weightDelta, unitSystem)} {UNIT_LABELS[unitSystem].weight} since last log
                 </Text>
               ) : null}
             </View>
             {weightChartPoints.length >= 2 ? (
               <LineChart
-                points={weightChartPoints}
+                points={weightChartPoints.map((p) => ({ ...p, value: weightAxisValue(p.value) }))}
                 colorHex="#8b5cf6"
                 minRange={2}
-                formatValue={(v) => `${Math.round(v * 10) / 10} kg`}
+                // v is already in display units (see weightAxisValue), so this
+                // labels it rather than converting a second time.
+                formatValue={(v) => `${Math.round(v * 10) / 10} ${UNIT_LABELS[unitSystem].weight}`}
               />
             ) : (
               <Text variant="caption">Log your weight a few more times to see the trend line.</Text>

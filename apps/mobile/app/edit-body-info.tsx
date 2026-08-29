@@ -1,13 +1,16 @@
 import type { ActivityLevel, Sex } from '@fitness-app/shared';
+import { kgToDisplayWeight, UNIT_LABELS, weightInputToKg } from '@fitness-app/shared';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { ApiError } from '../src/api/client';
 import { Button } from '../src/components/ui/Button';
 import { Chip } from '../src/components/ui/Chip';
 import { Text } from '../src/components/ui/Text';
+import { HeightField } from '../src/components/ui/HeightField';
 import { TextField } from '../src/components/ui/TextField';
 import { useMe } from '../src/hooks/useMe';
 import { useUpdateProfile } from '../src/hooks/useOnboardingMutations';
+import { useUnitSystem } from '../src/hooks/useUnitSystem';
 import { useRequireAuth } from '../src/hooks/useRequireAuth';
 import { goBackOrHome } from '../src/utils/navigation';
 
@@ -32,6 +35,7 @@ export default function EditBodyInfoScreen() {
   const isAuthenticated = useRequireAuth();
   const me = useMe();
   const updateProfile = useUpdateProfile();
+  const unitSystem = useUnitSystem();
 
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [heightCm, setHeightCm] = useState('');
@@ -47,12 +51,17 @@ export default function EditBodyInfoScreen() {
     const profile = me.data.profile;
     setDateOfBirth(profile.dateOfBirth ? profile.dateOfBirth.slice(0, 10) : '');
     setHeightCm(profile.heightCm !== null ? String(profile.heightCm) : '');
-    setCurrentWeightKg(profile.currentWeightKg !== null ? String(profile.currentWeightKg) : '');
-    setTargetWeightKg(profile.targetWeightKg !== null ? String(profile.targetWeightKg) : '');
+    // Stored kilograms are shown in whatever unit the user has chosen.
+    setCurrentWeightKg(
+      profile.currentWeightKg !== null ? String(kgToDisplayWeight(profile.currentWeightKg, unitSystem)) : '',
+    );
+    setTargetWeightKg(
+      profile.targetWeightKg !== null ? String(kgToDisplayWeight(profile.targetWeightKg, unitSystem)) : '',
+    );
     setSex(profile.sex);
     setActivityLevel(profile.activityLevel);
     setHydrated(true);
-  }, [me.data, hydrated]);
+  }, [me.data, hydrated, unitSystem]);
 
   const isValid =
     DATE_PATTERN.test(dateOfBirth) &&
@@ -68,8 +77,9 @@ export default function EditBodyInfoScreen() {
       await updateProfile.mutateAsync({
         dateOfBirth,
         heightCm: Number(heightCm),
-        currentWeightKg: Number(currentWeightKg),
-        targetWeightKg: targetWeightKg ? Number(targetWeightKg) : undefined,
+        // The inputs hold the user's chosen unit; the API is always kilograms.
+        currentWeightKg: weightInputToKg(Number(currentWeightKg), unitSystem),
+        targetWeightKg: targetWeightKg ? weightInputToKg(Number(targetWeightKg), unitSystem) : undefined,
         sex,
         activityLevel,
       });
@@ -100,26 +110,20 @@ export default function EditBodyInfoScreen() {
           placeholder="1995-06-15"
           keyboardType="numbers-and-punctuation"
         />
+        <HeightField valueCm={heightCm} onChangeCm={setHeightCm} unitSystem={unitSystem} />
         <TextField
-          label="Height (cm)"
-          value={heightCm}
-          onChangeText={setHeightCm}
-          keyboardType="numeric"
-          placeholder="170"
-        />
-        <TextField
-          label="Current weight (kg)"
+          label={`Current weight (${UNIT_LABELS[unitSystem].weight})`}
           value={currentWeightKg}
           onChangeText={setCurrentWeightKg}
           keyboardType="numeric"
-          placeholder="70"
+          placeholder={unitSystem === 'imperial' ? '155' : '70'}
         />
         <TextField
-          label="Target weight (kg) — optional"
+          label={`Target weight (${UNIT_LABELS[unitSystem].weight}) — optional`}
           value={targetWeightKg}
           onChangeText={setTargetWeightKg}
           keyboardType="numeric"
-          placeholder="65"
+          placeholder={unitSystem === 'imperial' ? '145' : '65'}
         />
 
         <View className="gap-2">

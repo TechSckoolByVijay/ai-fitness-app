@@ -21,6 +21,14 @@ enum Sex {
   prefer_not_to_say
 }
 
+/// Display preference only — heights and weights are always STORED in
+/// metric (cm/kg) and every calculation runs on those values. See
+/// packages/shared/src/utils/units.ts.
+enum UnitSystem {
+  metric
+  imperial
+}
+
 enum ActivityLevel {
   sedentary
   light
@@ -204,6 +212,7 @@ model Profile {
   currentWeightKg       Decimal?  @db.Decimal(5, 2)
   targetWeightKg        Decimal?  @db.Decimal(5, 2)
   activityLevel         ActivityLevel?
+  unitSystem            UnitSystem @default(metric)
   wakeTime              String?
   targetSleepTime       String?
   waterTargetMl         Int?
@@ -464,6 +473,10 @@ model NotificationPreference {
   id              String               @id @default(uuid()) @db.Uuid
   userId          String               @db.Uuid
   category        NotificationCategory
+  /// null for the three built-in reminders, which are seeded per user and
+  /// can be disabled but not deleted. Non-null for a reminder the user added
+  /// themselves — this is also what the notification title uses.
+  label           String?
   enabled         Boolean              @default(true)
   frequency       String?
   quietHoursStart String?
@@ -474,7 +487,11 @@ model NotificationPreference {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, category])
+  /// Deliberately NOT unique on [userId, category]: a user may keep several
+  /// reminders of the same category (e.g. a lunch and a dinner nudge), so
+  /// rows are addressed by id. A partial unique index still guarantees at
+  /// most one built-in row per category per user.
+  @@index([userId])
 }
 
 model HealthIntegration {

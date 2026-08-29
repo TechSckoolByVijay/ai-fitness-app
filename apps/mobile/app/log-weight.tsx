@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, View } from 'react-native';
+import { UNIT_LABELS, weightInputToKg } from '@fitness-app/shared';
 import { ApiError } from '../src/api/client';
 import { Button } from '../src/components/ui/Button';
 import { Text } from '../src/components/ui/Text';
 import { TextField } from '../src/components/ui/TextField';
 import { useCreateWeightEntry } from '../src/hooks/useWeightEntries';
 import { useRequireAuth } from '../src/hooks/useRequireAuth';
+import { useUnitSystem } from '../src/hooks/useUnitSystem';
 import { goBackOrHome } from '../src/utils/navigation';
 
 export default function LogWeightScreen() {
   const isAuthenticated = useRequireAuth();
   const createWeightEntry = useCreateWeightEntry();
+  const unitSystem = useUnitSystem();
   const [weight, setWeight] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +24,11 @@ export default function LogWeightScreen() {
     if (!isValid) return;
     setError(null);
     try {
-      await createWeightEntry.mutateAsync({ weightKg: parsed, loggedAt: new Date().toISOString() });
+      // Entry is in the user's chosen unit; storage is always kilograms.
+      await createWeightEntry.mutateAsync({
+        weightKg: weightInputToKg(parsed, unitSystem),
+        loggedAt: new Date().toISOString(),
+      });
       goBackOrHome();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
@@ -44,10 +51,10 @@ export default function LogWeightScreen() {
       <View className="gap-4 p-5">
         <Text variant="subtitle">What&apos;s your weight today?</Text>
         <TextField
-          label="Weight (kg)"
+          label={`Weight (${UNIT_LABELS[unitSystem].weight})`}
           value={weight}
           onChangeText={setWeight}
-          placeholder="e.g. 70.5"
+          placeholder={unitSystem === 'imperial' ? 'e.g. 155' : 'e.g. 70.5'}
           keyboardType="decimal-pad"
           autoFocus
         />

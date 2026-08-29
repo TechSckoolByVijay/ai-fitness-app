@@ -96,6 +96,14 @@ export default function RootLayout() {
             options={{ presentation: 'modal', headerShown: true, title: 'Log sleep' }}
           />
           <Stack.Screen
+            name="units"
+            options={{ presentation: 'modal', headerShown: true, title: 'Units' }}
+          />
+          <Stack.Screen
+            name="reminders"
+            options={{ presentation: 'modal', headerShown: true, title: 'Reminders' }}
+          />
+          <Stack.Screen
             name="edit-body-info"
             options={{ presentation: 'modal', headerShown: true, title: 'Edit body info' }}
           />

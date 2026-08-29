@@ -899,3 +899,173 @@ react-native-svg rings since that would force a rebuild + reinstall):
 
 Not touched: navigation structure, onboarding flow order, log-meal state
 machine — this pass is visual identity + retention mechanics only.
+
+---
+
+# CalorieQ free-tier parity
+
+Goal: bring the app to at least feature parity with CalorieQ's free tier,
+based on a screenshot walkthrough of that app (2026-08-29). Ordered by
+value-per-unit-of-work, not by screen.
+
+## 0. Status-signal colour system — DONE (2026-08-29)
+
+Every status message rendered in brand green, so a warning was visually
+identical to praise. Root causes were three separate places discarding the
+signal:
+
+- `app/(tabs)/index.tsx` hardcoded `bg-primary-500` and computed
+  `caloriePace.alignment` without ever using it.
+- `ProgressBar` clamped at 100%, so 500 kcal over target looked exactly like
+  hitting it.
+- The Tailwind theme had no semantic colours at all, so each component
+  invented its own inline.
+
+Fixed via `src/utils/statusTone.ts` as the single source of truth
+(`positive` / `neutral` / `caution` / `critical`), `caution` + `danger`
+colour scales, `ProgressBar` overflow rendering, and a tone-driven hero.
+Resting state is now slate, not green — green is *earned*, otherwise it
+can't mean anything. Every tone carries a distinct shape and word, not just
+a colour (red/green is the most common colour-vision deficiency and is
+precisely the distinction being drawn).
+
+## 1. Vision model — food photo recognition
+
+Not a missing feature: the pipeline (`mealPhoto.ts` → `/events` →
+`openai.provider.ts` `PHOTO_INSTRUCTION`) already exists and already asks for
+every distinct item with per-item portions. `chapati` is already in
+`food-table.ts` with roti aliases.
+
+The failure is model tier. `.env` has `AI_MODEL=gpt-4o-mini` — the weakest
+vision tier. Actions:
+
+- Move to a stronger vision model (env-var only, no code change).
+- Raise `mealPhoto.ts` capture `quality` 0.5 → 0.7 and `detail` to `high`
+  for food photos.
+- Prime `PHOTO_INSTRUCTION` with Indian-cuisine vocabulary. CalorieQ returns
+  "Whole Wheat Roti" — that specificity is a prompt bias, not a better model.
+- Re-test with the original chapati photo before/after.
+
+## 2. Reminders — selectable time + user-added reminders — DONE (2026-08-29)
+
+Scoped down on 2026-08-29 after review. **Explicitly NOT doing** repeating
+interval reminders ("water every 2 hours"): the existing fixed reminders are
+fine as they are. The unused `NotificationPreference.frequency` column stays
+unused.
+
+Two things to fix:
+
+### 2a. Time must be selected, not typed
+
+`RemindersCard.tsx` currently asks the user to type "21:00" into a
+`TextField` with a `numbers-and-punctuation` keyboard, validated by regex.
+That is the worst interaction in the app.
+
+- Add `@react-native-community/datetimepicker` (bundled in Expo Go, so no
+  dev build needed — install with `npx expo install`).
+- New `TimeField` UI component: renders the current time as a pressable
+  chip, opens the native clock dialog on Android / spinner on iOS, hands
+  back "HH:MM". One component, used by both built-in and added reminders,
+  so the two can never diverge.
+- The existing `preferredTime` regex on the API stays as the server-side
+  guard — a picker can't emit a bad value, but the endpoint is still public.
+
+### 2b. Let the user add their own reminders
+
+Someone may want lunch only, or lunch and dinner. Today that is impossible:
+`schema.prisma` has `@@unique([userId, category])`, so exactly one row can
+exist per category.
+
+The row already has an `id` primary key — the constraint is the only thing
+in the way. Plan:
+
+- **Migration**: drop `@@unique([userId, category])`; add `label String?`
+  (null = one of the three built-ins, non-null = a user-added reminder).
+- **Backfill**: insert the three built-in rows for every existing user, and
+  seed them on registration for new ones. This is what makes every row
+  addressable by `id`, so no endpoint has to fall back to addressing a
+  not-yet-persisted row by category. Deliberately seeded at registration
+  rather than lazily on first GET — a read endpoint should not write.
+- **API** becomes id-keyed: `POST` to create, `PATCH /:id`, `DELETE /:id`.
+  Built-in rows accept `PATCH` but refuse `DELETE`, so a user can turn the
+  water reminder off but cannot end up with an app that has lost it.
+- **Scheduling**: `notifications.ts` currently derives the OS notification
+  identifier from the category (`reminder-${category}`), which means two
+  reminders of the same kind would silently overwrite each other. Key it by
+  row `id` instead. The cancel-before-reschedule reconciliation already
+  works and stays as-is.
+- **Copy**: `REMINDER_CONTENT` only has title/body for the three built-ins.
+  A user-added reminder uses its own label as the notification title with a
+  generic body.
+
+### UI
+
+One Reminders screen, matching the reference app's shape: built-in rows
+first, then any added reminders, then an "Add reminder" button that asks for
+a label and a time. Each row is a toggle plus a tappable time. Deleting an
+added reminder is a swipe or a row action; built-ins have no delete
+affordance at all rather than a disabled one.
+
+### Implementation note: Prisma schema drift
+
+The migration creates a **partial** unique index
+(`... ON "NotificationPreference"("userId","category") WHERE "label" IS NULL`)
+to keep the "at most one built-in per category per user" guarantee. Partial
+indexes cannot be expressed in `schema.prisma`, so `prisma migrate dev` will
+report drift and offer to drop it. Do not accept that: `createMany({
+skipDuplicates: true })` in `seedBuiltInReminders` compiles to
+`ON CONFLICT DO NOTHING`, which needs this index to detect a duplicate.
+Use `prisma migrate deploy` (which does not diff) for deployments.
+
+## 3. Unit system (metric / imperial) — DONE (2026-08-29)
+
+Currently zero support — `grep` for `imperial|unitSystem|lbs` returns nothing.
+
+- Keep storing metric in the DB; convert at the display layer only.
+- `Profile.unitSystem` enum + migration; shared conversion helpers in
+  `packages/shared`.
+- Units settings screen (radio list).
+- A lbs/kg toggle on the weight-logging sheet itself, so it is changeable in
+  the moment rather than only in settings.
+- Default metric, user-switchable.
+
+## 4. Weight logging ruler slider
+
+`app/log-weight.tsx` is a plain TextField. Replace with a horizontal
+snap-to-tick ruler (big number above, drag left/right), per CalorieQ.
+
+## 5. Calorie budget screen
+
+New — we compute targets in `calorie-targets.ts` with no override path.
+
+- Standard (calculated) vs Customizable (user-set) calorie target.
+- Macro ratio sliders (carbs / fat / protein).
+- Keep our own 1200 kcal floor (PRODUCT.md principle 7) rather than
+  CalorieQ's 800 lower bound.
+
+## 6. Onboarding slim-down
+
+Currently 7 screens, with `body-info.tsx` asking 13 decisions on one screen
+and `goal.tsx` offering 7 goals.
+
+- Cut the goal step to three (lose / maintain / gain). Keep the other four
+  `GoalType` enum values so nothing breaks — just stop showing them.
+- Split body-info into one-question-per-screen steps.
+- Replace the `YYYY-MM-DD` text field with a real date picker.
+- Make allergies and health conditions skippable.
+
+Sex and date of birth are already collected and already feed BMR/TDEE via
+`calorie-targets.ts`, so age/sex-appropriate targets already work — this is
+an input-UX problem only.
+
+## 7. Weight progress card
+
+`BmiCard` already matches CalorieQ's BMI scale closely. Missing is their
+Weight Progress card: goal weight, projected reach date, and the trend line
+chart. `LineChart` and `useWeightEntries` already exist.
+
+## Rejected
+
+**Home + navigation restyle (5 tabs -> 3 tabs + centre FAB).** Considered
+after the CalorieQ walkthrough and explicitly declined on 2026-08-29 — the
+current tab structure stays. Not revisiting without a new reason.

@@ -9,7 +9,9 @@ import { SkeletonBlock } from '../../src/components/ui/SkeletonBlock';
 import { Text } from '../../src/components/ui/Text';
 import { TextField } from '../../src/components/ui/TextField';
 import { TopInsetSpacer } from '../../src/components/ui/TopInsetSpacer';
+import { formatHeight, formatWeight } from '@fitness-app/shared';
 import { RemindersCard } from '../../src/components/RemindersCard';
+import { useUnitSystem } from '../../src/hooks/useUnitSystem';
 import { ThemeToggle } from '../../src/components/ThemeToggle';
 import { useDeleteAccount, useLogout } from '../../src/hooks/useAuth';
 import { useMe } from '../../src/hooks/useMe';
@@ -45,6 +47,7 @@ function CardHeader({ title, onEdit }: { title: string; onEdit: () => void }) {
 
 export default function ProfileScreen() {
   const me = useMe();
+  const unitSystem = useUnitSystem();
   const logout = useLogout();
   const deleteAccount = useDeleteAccount();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -111,9 +114,20 @@ export default function ProfileScreen() {
 
           <Card>
             <CardHeader title="Body info" onEdit={() => router.push('/edit-body-info')} />
-            <Row label="Height" value={me.data.profile.heightCm ? `${me.data.profile.heightCm} cm` : '—'} />
-            <Row label="Current weight" value={me.data.profile.currentWeightKg ? `${me.data.profile.currentWeightKg} kg` : '—'} />
-            <Row label="Target weight" value={me.data.profile.targetWeightKg ? `${me.data.profile.targetWeightKg} kg` : '—'} />
+            <Row
+              label="Height"
+              value={me.data.profile.heightCm ? formatHeight(me.data.profile.heightCm, unitSystem) : '—'}
+            />
+            <Row
+              label="Current weight"
+              value={
+                me.data.profile.currentWeightKg ? formatWeight(me.data.profile.currentWeightKg, unitSystem) : '—'
+              }
+            />
+            <Row
+              label="Target weight"
+              value={me.data.profile.targetWeightKg ? formatWeight(me.data.profile.targetWeightKg, unitSystem) : '—'}
+            />
             <Row label="Activity level" value={me.data.profile.activityLevel?.replace('_', ' ') ?? '—'} />
             <Row label="Calorie target" value={me.data.profile.calorieTarget ? `${me.data.profile.calorieTarget} kcal` : '—'} />
             <Row label="Protein target" value={me.data.profile.proteinTarget ? `${me.data.profile.proteinTarget} g` : '—'} />
@@ -150,6 +164,18 @@ export default function ProfileScreen() {
                   : 'None'
               }
             />
+          </Card>
+
+          <Card>
+            <View className="flex-row items-center justify-between">
+              <View>
+                <Text variant="subtitle">Units</Text>
+                <Text variant="caption" className="text-gray-500 dark:text-gray-400">
+                  {unitSystem === 'imperial' ? 'Imperial (lb, ft/in)' : 'Metric (kg, cm)'}
+                </Text>
+              </View>
+              <Button label="Change" variant="ghost" onPress={() => router.push('/units')} />
+            </View>
           </Card>
 
           <RemindersCard />

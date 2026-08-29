@@ -1,4 +1,5 @@
 import type { ActivityLevel, Sex } from '@fitness-app/shared';
+import { kgToDisplayWeight, UNIT_LABELS, weightInputToKg } from '@fitness-app/shared';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
@@ -6,8 +7,10 @@ import { OnboardingScaffold } from '../../src/components/onboarding/OnboardingSc
 import { Button } from '../../src/components/ui/Button';
 import { Chip } from '../../src/components/ui/Chip';
 import { Text } from '../../src/components/ui/Text';
+import { HeightField } from '../../src/components/ui/HeightField';
 import { TextField } from '../../src/components/ui/TextField';
 import { useUpdateProfile } from '../../src/hooks/useOnboardingMutations';
+import { useUnitSystem } from '../../src/hooks/useUnitSystem';
 
 const SEX_OPTIONS: { value: Sex; label: string }[] = [
   { value: 'female', label: 'Female' },
@@ -34,6 +37,7 @@ export default function BodyInfoStep() {
   const [sex, setSex] = useState<Sex | null>(null);
   const [activityLevel, setActivityLevel] = useState<ActivityLevel | null>(null);
   const updateProfile = useUpdateProfile();
+  const unitSystem = useUnitSystem();
 
   const isValid =
     DATE_PATTERN.test(dateOfBirth) &&
@@ -47,8 +51,9 @@ export default function BodyInfoStep() {
     await updateProfile.mutateAsync({
       dateOfBirth,
       heightCm: Number(heightCm),
-      currentWeightKg: Number(currentWeightKg),
-      targetWeightKg: targetWeightKg ? Number(targetWeightKg) : undefined,
+      // The inputs hold the user's chosen unit; the API is always kilograms.
+      currentWeightKg: weightInputToKg(Number(currentWeightKg), unitSystem),
+      targetWeightKg: targetWeightKg ? weightInputToKg(Number(targetWeightKg), unitSystem) : undefined,
       sex,
       activityLevel,
     });
@@ -71,26 +76,20 @@ export default function BodyInfoStep() {
         placeholder="1995-06-15"
         keyboardType="numbers-and-punctuation"
       />
+      <HeightField valueCm={heightCm} onChangeCm={setHeightCm} unitSystem={unitSystem} />
       <TextField
-        label="Height (cm)"
-        value={heightCm}
-        onChangeText={setHeightCm}
-        keyboardType="numeric"
-        placeholder="170"
-      />
-      <TextField
-        label="Current weight (kg)"
+        label={`Current weight (${UNIT_LABELS[unitSystem].weight})`}
         value={currentWeightKg}
         onChangeText={setCurrentWeightKg}
         keyboardType="numeric"
-        placeholder="70"
+        placeholder={unitSystem === 'imperial' ? '155' : '70'}
       />
       <TextField
-        label="Target weight (kg) — optional"
+        label={`Target weight (${UNIT_LABELS[unitSystem].weight}) — optional`}
         value={targetWeightKg}
         onChangeText={setTargetWeightKg}
         keyboardType="numeric"
-        placeholder="65"
+        placeholder={unitSystem === 'imperial' ? '145' : '65'}
       />
 
       <View className="gap-2">

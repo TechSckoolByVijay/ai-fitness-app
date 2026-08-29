@@ -7,6 +7,7 @@ import {
   HealthConditionTypeSchema,
   SexSchema,
 } from './enums.schema';
+import { UnitSystemSchema } from './units.schema';
 
 export const UpdateProfileRequestSchema = z.object({
   dateOfBirth: z.string().optional(),
@@ -15,6 +16,8 @@ export const UpdateProfileRequestSchema = z.object({
   currentWeightKg: z.number().positive().optional(),
   targetWeightKg: z.number().positive().optional(),
   activityLevel: ActivityLevelSchema.optional(),
+  /** Display preference only — heightCm/weightKg above are always metric. */
+  unitSystem: UnitSystemSchema.optional(),
 });
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>;
 
@@ -58,6 +61,7 @@ export const ProfileDtoSchema = z.object({
   currentWeightKg: z.number().nullable(),
   targetWeightKg: z.number().nullable(),
   activityLevel: ActivityLevelSchema.nullable(),
+  unitSystem: UnitSystemSchema,
   waterTargetMl: z.number().nullable(),
   calorieTarget: z.number().nullable(),
   proteinTarget: z.number().nullable(),

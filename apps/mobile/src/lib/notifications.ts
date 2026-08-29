@@ -25,11 +25,24 @@ const REMINDER_CONTENT: Partial<Record<NotificationPreferenceDto['category'], { 
   },
 };
 
-/** Only these categories have a reminder actually wired up to fire — the rest of NotificationCategory exists for future phases (meal_suggestion, goal_progress, etc.). */
-const REMINDER_CAPABLE_CATEGORIES = Object.keys(REMINDER_CONTENT) as NotificationPreferenceDto['category'][];
+/**
+ * Copy for a user-added reminder. Their own label is the title — it is what
+ * they typed and what they will recognise on the lock screen.
+ */
+function contentFor(pref: NotificationPreferenceDto): { title: string; body: string } | null {
+  if (pref.label) {
+    return { title: pref.label, body: 'Tap to log it while it’s fresh.' };
+  }
+  return REMINDER_CONTENT[pref.category] ?? null;
+}
 
-function identifierFor(category: string): string {
-  return `reminder-${category}`;
+/**
+ * Keyed by row id, NOT category: a user can hold several reminders of the
+ * same category (a lunch and a dinner nudge, say), and a category-derived
+ * identifier would make the second silently overwrite the first.
+ */
+function identifierFor(id: string): string {
+  return `reminder-${id}`;
 }
 
 export async function requestNotificationPermissions(): Promise<boolean> {
@@ -60,26 +73,30 @@ export async function syncScheduledReminders(preferences: NotificationPreference
 
   await ensureAndroidChannel();
 
-  const byCategory = new Map(preferences.map((pref) => [pref.category, pref]));
+  // Reminders can now be deleted, so reconciling only over the rows we were
+  // handed would leave a deleted one firing forever. Cancel everything this
+  // app scheduled, then re-add what should exist.
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
+  for (const item of scheduled) {
+    if (item.identifier.startsWith('reminder-')) {
+      await Notifications.cancelScheduledNotificationAsync(item.identifier).catch(() => {});
+    }
+  }
 
-  for (const category of REMINDER_CAPABLE_CATEGORIES) {
-    const identifier = identifierFor(category);
-    await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
-
-    const pref = byCategory.get(category);
-    if (!pref?.enabled || !pref.preferredTime) continue;
+  for (const pref of preferences) {
+    if (!pref.enabled || !pref.preferredTime) continue;
 
     const [hourStr, minuteStr] = pref.preferredTime.split(':');
     const hour = Number(hourStr);
     const minute = Number(minuteStr);
     if (!Number.isFinite(hour) || !Number.isFinite(minute)) continue;
 
-    const content = REMINDER_CONTENT[category];
+    const content = contentFor(pref);
     if (!content) continue;
 
     await Notifications.scheduleNotificationAsync({
-      identifier,
-      content: { title: content.title, body: content.body, data: { category } },
+      identifier: identifierFor(pref.id),
+      content: { title: content.title, body: content.body, data: { category: pref.category, id: pref.id } },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,

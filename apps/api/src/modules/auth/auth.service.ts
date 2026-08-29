@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import type { Env } from '../../config/env';
 import { ConflictError, UnauthorizedError } from '../../lib/errors';
+import { seedBuiltInReminders } from '../notifications/notification-preferences.service';
 import { hashPassword, verifyPassword } from './password';
 import { generateRefreshToken, hashRefreshToken, REFRESH_TOKEN_TTL_MS } from './tokens';
 
@@ -55,6 +56,10 @@ export async function registerUser(
       profile: { create: {} },
     },
   });
+
+  // Reminders are addressed by row id, so the built-in three must exist from
+  // the start rather than being created lazily on first edit.
+  await seedBuiltInReminders(prisma, user.id);
 
   const accessToken = signAccessToken(user.id);
   const refreshToken = await issueRefreshToken(prisma, env, user.id);

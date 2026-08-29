@@ -1,96 +1,49 @@
-import type { NotificationCategory } from '@fitness-app/shared';
-import { useEffect, useState } from 'react';
-import { Switch, View } from 'react-native';
-import { useNotificationPreferences, useUpdateNotificationPreference } from '../hooks/useNotificationPreferences';
+import { router } from 'expo-router';
+import { useEffect } from 'react';
+import { View } from 'react-native';
+import { useNotificationPreferences } from '../hooks/useNotificationPreferences';
 import { syncScheduledReminders } from '../lib/notifications';
+import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 import { SkeletonBlock } from './ui/SkeletonBlock';
 import { Text } from './ui/Text';
-import { TextField } from './ui/TextField';
 
-const REMINDER_CATEGORIES: Array<{ category: NotificationCategory; label: string }> = [
-  { category: 'water', label: 'Water reminder' },
-  { category: 'sleep', label: 'Bedtime reminder' },
-  { category: 'goal_progress', label: 'Meal logging reminder' },
-];
-
-interface ReminderRowProps {
-  label: string;
-  enabled: boolean;
-  preferredTime: string | null;
-  onToggle: (enabled: boolean) => void;
-  onCommitTime: (time: string) => void;
-}
-
-function ReminderRow({ label, enabled, preferredTime, onToggle, onCommitTime }: ReminderRowProps) {
-  const [timeDraft, setTimeDraft] = useState(preferredTime ?? '');
-
-  useEffect(() => {
-    setTimeDraft(preferredTime ?? '');
-  }, [preferredTime]);
-
-  return (
-    <View className="gap-2 border-b border-gray-100 py-3 last:border-b-0 dark:border-gray-800">
-      <View className="flex-row items-center justify-between">
-        <Text variant="body" className="font-medium">
-          {label}
-        </Text>
-        <Switch value={enabled} onValueChange={onToggle} trackColor={{ true: '#12c06e' }} />
-      </View>
-      {enabled ? (
-        <TextField
-          label="Preferred time (24-hour, e.g. 21:00)"
-          value={timeDraft}
-          onChangeText={setTimeDraft}
-          onBlur={() => timeDraft !== (preferredTime ?? '') && onCommitTime(timeDraft)}
-          placeholder="21:00"
-          keyboardType="numbers-and-punctuation"
-        />
-      ) : null}
-    </View>
-  );
-}
-
+/**
+ * Summary only — editing lives on the Reminders screen, because adding a
+ * reminder needs a name and a time picker and that does not fit inline in
+ * the Profile stack.
+ *
+ * This still owns the OS reconciliation: Profile is opened far more often
+ * than the Reminders screen, so syncing here keeps scheduled notifications
+ * in step with the server even when the user never opens the editor.
+ */
 export function RemindersCard() {
   const preferences = useNotificationPreferences();
-  const updatePreference = useUpdateNotificationPreference();
 
   useEffect(() => {
     if (!preferences.data) return;
     void syncScheduledReminders(preferences.data.preferences);
   }, [preferences.data]);
 
+  const active = preferences.data?.preferences.filter((p) => p.enabled && p.preferredTime) ?? [];
+
   return (
     <Card>
-      <Text variant="subtitle" className="mb-1">
-        Reminders
-      </Text>
-      <Text variant="caption" className="mb-2">
-        Set when you&apos;d like a nudge — we&apos;ll send a notification at that time.
-      </Text>
+      <View className="mb-2 flex-row items-center justify-between">
+        <Text variant="subtitle">Reminders</Text>
+        <Button label="Edit" variant="ghost" onPress={() => router.push('/reminders')} />
+      </View>
 
       {preferences.isLoading || !preferences.data ? (
-        <SkeletonBlock className="h-24 w-full" />
+        <SkeletonBlock className="h-6 w-40" />
       ) : (
-        REMINDER_CATEGORIES.map(({ category, label }) => {
-          const pref = preferences.data.preferences.find((p) => p.category === category);
-          return (
-            <ReminderRow
-              key={category}
-              label={label}
-              enabled={pref?.enabled ?? true}
-              preferredTime={pref?.preferredTime ?? null}
-              onToggle={(enabled) =>
-                updatePreference.mutate({ category, enabled, preferredTime: pref?.preferredTime ?? undefined })
-              }
-              onCommitTime={(time) => {
-                if (/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
-                  updatePreference.mutate({ category, enabled: pref?.enabled ?? true, preferredTime: time });
-                }
-              }}
-            />
-          );
-        })
+        <Text variant="caption" className="text-gray-500 dark:text-gray-400">
+          {active.length === 0
+            ? 'No reminders switched on.'
+            : `${active.length} reminder${active.length === 1 ? '' : 's'} on — ${active
+                .map((p) => p.label ?? p.category.replace('_', ' '))
+                .join(', ')}.`}
+        </Text>
       )}
     </Card>
   );
