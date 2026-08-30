@@ -71,15 +71,15 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "d6573cf2-1010-408f-9406-978cffff44c4"
+        "projectId": "884e5225-b9c7-4f4f-beae-bc05ef0bae42"
       }
     },
-    "owner": "vijaysaini1992",
+    "owner": "poojasaini1995s-team",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/d6573cf2-1010-408f-9406-978cffff44c4"
+      "url": "https://u.expo.dev/884e5225-b9c7-4f4f-beae-bc05ef0bae42"
     }
   }
 }
