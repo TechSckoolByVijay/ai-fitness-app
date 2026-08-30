@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Image, ScrollView, View } from 'react-native';
 import { ActivityListItem } from '../../src/components/ActivityListItem';
 import { InsightCard } from '../../src/components/InsightCard';
+import { TodaySummaryCard } from '../../src/components/TodaySummaryCard';
 import { MealListItem } from '../../src/components/MealListItem';
 import { WeekStrip } from '../../src/components/WeekStrip';
 import { Card } from '../../src/components/ui/Card';
@@ -15,8 +16,6 @@ import { WaterCard } from '../../src/components/WaterCard';
 import { useDashboard, useDashboardHistory } from '../../src/hooks/useDashboard';
 import { useInsights } from '../../src/hooks/useInsights';
 import { useMe } from '../../src/hooks/useMe';
-import { getCaloriePace } from '../../src/utils/calorieProgress';
-import { getCalorieStatusTone, TONE_STYLES } from '../../src/utils/statusTone';
 import { computeLoggingStreak } from '../../src/utils/loggingStreak';
 
 const STREAK_WINDOW_DAYS = 30;
@@ -42,38 +41,6 @@ export default function HomeScreen() {
   const me = useMe();
   const firstName = me.data?.name?.split(' ')[0];
   const primaryGoal = me.data?.goals.find((g) => g.isPrimary)?.type ?? null;
-  const caloriePace =
-    dashboard.data?.calorieTarget != null
-      ? getCaloriePace(primaryGoal, dashboard.data.caloriesConsumed, dashboard.data.calorieTarget)
-      : null;
-
-  // The hero's colour is the primary signal that something needs attention,
-  // so it's derived from the numbers rather than hardcoded to the brand green.
-  const calorieTone = getCalorieStatusTone(
-    primaryGoal,
-    dashboard.data?.caloriesConsumed ?? 0,
-    dashboard.data?.calorieTarget ?? null,
-    caloriePace?.expectedByNow ?? 0,
-  );
-  const toneStyle = TONE_STYLES[calorieTone];
-  const caloriesOver =
-    dashboard.data?.calorieTarget != null
-      ? Math.round(dashboard.data.caloriesConsumed - dashboard.data.calorieTarget)
-      : 0;
-
-  /**
-   * What is still available to eat. Exercise is added back because the
-   * budget is what the body needs at its usual activity level — calories
-   * burned beyond that genuinely widen the day's allowance, and it is the
-   * same arithmetic the AI coach reasons with.
-   */
-  const caloriesLeft =
-    dashboard.data?.calorieTarget != null
-      ? Math.round(
-          dashboard.data.calorieTarget - dashboard.data.caloriesConsumed + (dashboard.data.activeCalories ?? 0),
-        )
-      : null;
-
   const historyDays = history.data?.days ?? [];
   const streak = computeLoggingStreak(historyDays);
   const weekDays = historyDays.slice(-7).map((d) => ({ date: d.date, logged: d.caloriesConsumed > 0 }));
@@ -103,73 +70,14 @@ export default function HomeScreen() {
           </View>
         ) : dashboard.data ? (
           <>
-            <View className={`rounded-3xl p-6 shadow-md ${toneStyle.heroContainer}`}>
-              <View className="flex-row items-center justify-between">
-                <Text className="text-[13px] font-bold uppercase tracking-widest text-white/80">
-                  Calories today
-                </Text>
-                {/* Colour alone can't carry this — the badge states the
-                    status in words and a glyph too. */}
-                <View className="flex-row items-center gap-1.5 rounded-full bg-black/20 px-2.5 py-1">
-                  <Text className="text-[12px] font-bold text-white">{toneStyle.icon}</Text>
-                  <Text className="text-[12px] font-bold uppercase tracking-wide text-white">
-                    {toneStyle.label}
-                  </Text>
-                </View>
-              </View>
-              {/* The number people actually act on is what is LEFT, not what
-                  has been eaten — "0 / 1699" made the reader do the
-                  subtraction themselves. The arithmetic is spelled out
-                  underneath so the figure is never a black box. */}
-              <View className="mt-2 flex-row items-baseline gap-2">
-                <Text className="text-6xl font-extrabold tracking-tight text-white">
-                  {caloriesLeft !== null ? Math.abs(caloriesLeft).toLocaleString() : '—'}
-                </Text>
-                <Text className="text-xl font-semibold text-white/80">
-                  kcal {caloriesLeft !== null && caloriesLeft < 0 ? 'over' : 'left'}
-                </Text>
-              </View>
-              {dashboard.data.calorieTarget != null ? (
-                <Text className="mt-1 text-[13px] font-medium text-white/75">
-                  {dashboard.data.calorieTarget.toLocaleString()} budget
-                  {' · '}
-                  {Math.round(dashboard.data.caloriesConsumed).toLocaleString()} eaten
-                  {dashboard.data.activeCalories > 0
-                    ? ` · ${Math.round(dashboard.data.activeCalories).toLocaleString()} burned`
-                    : ''}
-                </Text>
-              ) : null}
-              <View className="mt-4">
-                <ProgressBar
-                  value={dashboard.data.caloriesConsumed}
-                  target={dashboard.data.calorieTarget}
-                  colorClassName={toneStyle.heroBar}
-                  trackClassName={toneStyle.heroTrack}
-                  heightClassName="h-3.5"
-                  markerClassName={toneStyle.heroMarker}
-                  overflowClassName="bg-danger-950/70"
-                  markerPct={
-                    caloriePace && dashboard.data.calorieTarget
-                      ? (caloriePace.expectedByNow / dashboard.data.calorieTarget) * 100
-                      : undefined
-                  }
-                />
-              </View>
-              {/* Going past the whole day's budget is the one case that
-                  outranks pace, so it gets said plainly instead of being
-                  folded into a "you're ahead of pace" phrasing. */}
-              {calorieTone === 'critical' ? (
-                <Text className="mt-2.5 text-[15px] font-bold text-white">
-                  {caloriesOver} kcal over today&apos;s budget.
-                  <Text className="text-[12px] font-medium text-white/70"> · estimated</Text>
-                </Text>
-              ) : caloriePace ? (
-                <Text className="mt-2.5 text-[14px] font-semibold text-white/90">
-                  {caloriePace.message}
-                  <Text className="text-[12px] text-white/60"> · estimated</Text>
-                </Text>
-              ) : null}
-            </View>
+            <TodaySummaryCard
+              goalType={primaryGoal}
+              calorieTarget={dashboard.data.calorieTarget}
+              caloriesConsumed={dashboard.data.caloriesConsumed}
+              activeCalories={dashboard.data.activeCalories ?? 0}
+              proteinTarget={dashboard.data.proteinTarget}
+              proteinConsumed={dashboard.data.proteinConsumed}
+            />
 
             {dashboard.data.steps != null ? (
               <Card className="bg-violet-50 dark:bg-violet-950/60">
@@ -196,43 +104,23 @@ export default function HomeScreen() {
               </Card>
             ) : null}
 
-            <View className="flex-row gap-4">
-              <Card className="flex-1 bg-sky-50 dark:bg-sky-950/60">
-                <Text className="text-2xl">🥩</Text>
-                <Text className="mt-1 text-3xl font-extrabold tracking-tight text-sky-600 dark:text-sky-400">
-                  {Math.round(dashboard.data.proteinConsumed)}
-                  <Text className="text-base font-bold text-sky-600/70 dark:text-sky-400/70">
-                    {' '}
-                    / {dashboard.data.proteinTarget ?? '—'} g
+            <Card className="bg-amber-50 dark:bg-amber-950/60">
+              <View className="flex-row items-center justify-between">
+                <View>
+                  <Text className="text-2xl">🔥</Text>
+                  <Text className="mt-1 text-3xl font-extrabold tracking-tight text-amber-600 dark:text-amber-400">
+                    {Math.round(dashboard.data.activeCalories)}
+                    <Text className="text-base font-bold text-amber-600/70 dark:text-amber-400/70"> kcal</Text>
                   </Text>
-                </Text>
-                <Text variant="caption" className="mt-0.5 font-bold text-sky-700/80 dark:text-sky-300/80">
-                  Protein
-                </Text>
-                <View className="mt-2">
-                  <ProgressBar
-                    value={dashboard.data.proteinConsumed}
-                    target={dashboard.data.proteinTarget}
-                    colorClassName="bg-sky-500"
-                    trackClassName="bg-sky-200/60 dark:bg-sky-900/60"
-                  />
+                  <Text variant="caption" className="mt-0.5 font-bold text-amber-700/80 dark:text-amber-300/80">
+                    Burned today
+                  </Text>
                 </View>
-              </Card>
-
-              <Card className="flex-1 bg-amber-50 dark:bg-amber-950/60">
-                <Text className="text-2xl">🔥</Text>
-                <Text className="mt-1 text-3xl font-extrabold tracking-tight text-amber-600 dark:text-amber-400">
-                  {Math.round(dashboard.data.activeCalories)}
-                  <Text className="text-base font-bold text-amber-600/70 dark:text-amber-400/70"> kcal</Text>
-                </Text>
-                <Text variant="caption" className="mt-0.5 font-bold text-amber-700/80 dark:text-amber-300/80">
-                  Burned
-                </Text>
-                <Text variant="caption" className="mt-2 text-amber-700/70 dark:text-amber-300/70">
+                <Text variant="caption" className="text-amber-700/70 dark:text-amber-300/70">
                   {Math.round(dashboard.data.exerciseDurationMin)} min active
                 </Text>
-              </Card>
-            </View>
+              </View>
+            </Card>
 
             <WaterCard consumedMl={dashboard.data.waterConsumedMl} targetMl={dashboard.data.waterTargetMl} />
 
