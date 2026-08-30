@@ -1,18 +1,21 @@
-name: Build Android APK (self-hosted, no EAS cloud queue)
+name: Build Android APK (EAS cloud build)
 
-# Runs the actual compile on GitHub's own runner instead of EAS's cloud
-# build queue — but still goes through `eas build`, just with `--local`, so
-# credentials (the existing Android upload keystore, already used for every
-# build so far) are still fetched from EAS's credential service the normal
-# way. This deliberately does NOT reimplement signing/prebuild by hand —
-# see PLAN.md's "GitHub Actions CI pipeline" section for why.
+# Submits the build to EAS's cloud builders and waits for the result, so the
+# build is visible in the Expo dashboard and downloadable from there.
 #
-# One-time setup required before this can run (see PLAN.md):
-#   1. Create an Expo access token at
-#      https://expo.dev/accounts/<account>/settings/access-tokens
-#   2. Add it as a repository secret named EXPO_TOKEN
-# Until that secret exists, this workflow will fail cleanly at the build
-# step with an auth error — nothing destructive happens either way.
+# This previously ran `eas build --local`, compiling on the GitHub runner to
+# avoid the EAS queue. That turned out not to work for this app: GitHub's
+# hosted runners are 2-core/7GB, and the release lint pass
+# (:expo-modules-core:lintVitalAnalyzeRelease) exhausted the JVM metaspace.
+# An earlier run on the same setup hung until GitHub's 6-hour ceiling killed
+# it. EAS's builders are provisioned for Android compilation and do not hit
+# either problem.
+#
+# Requires a repository secret named EXPO_TOKEN, from an account that owns
+# (or has been granted access to) the EAS project in apps/mobile/app.json.
+# A token that is valid but belongs to a different account fails with
+# "Entity not authorized: AppEntity[...]" — that is a permissions problem,
+# not a bad token.
 
 on:
   workflow_dispatch:
@@ -29,15 +32,16 @@ on:
 jobs:
   build-android:
     runs-on: ubuntu-latest
-    # A previous run hung in Gradle and was only stopped by GitHub's default
-    # 6-hour ceiling, burning six hours of runner minutes for no artifact.
-    # A local Android build that has not finished in 45 minutes is stuck, not
-    # slow -- fail fast and keep the logs instead.
-    timeout-minutes: 45
+    # Generous, because this waits on EAS's queue as well as the build. It
+    # exists so a stuck run fails in an hour rather than sitting on GitHub's
+    # default 6-hour ceiling, which a previous run did.
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # No Java or Android SDK setup: compilation happens on EAS, and this
+      # job only needs enough Node to run the CLI.
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -45,25 +49,13 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses > /dev/null || true
-
       - name: Install workspace dependencies
         run: npm ci
 
       - name: Install EAS CLI
         run: npm install --global eas-cli
 
-      - name: Build Android APK locally via EAS
+      - name: Build Android APK on EAS
         working-directory: apps/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -71,13 +63,12 @@ jobs:
           eas build \
             --platform android \
             --profile ${{ github.event.inputs.profile }} \
-            --local \
             --non-interactive \
-            --output ./build.apk
+            --wait
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: fitness-coach-${{ github.event.inputs.profile }}
-          path: apps/mobile/build.apk
-          retention-days: 14
+      - name: Show where to download the build
+        if: always()
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas build:list --platform android --limit 1 --non-interactive || true
