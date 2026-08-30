@@ -1,0 +1,66 @@
+name: API uptime check
+
+# Logs cannot tell you the API is DOWN — a dead container writes nothing at
+# all, which is indistinguishable from a quiet night. Only something outside
+# the system, asking, can detect that.
+#
+# Deliberately a scheduled GitHub Action rather than an Azure availability
+# test: it needs no new billable resource, and a failed run already emails
+# the repo owner, so alerting comes for free.
+#
+# Note GitHub disables scheduled workflows on a repository with no activity
+# for 60 days, and queues schedules on a best-effort basis — treat this as a
+# smoke alarm, not a stopwatch.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: uptime
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check /health
+        env:
+          BASE: https://fitness-coach-api.livelysand-91f7619e.centralus.azurecontainerapps.io
+        run: |
+          set -uo pipefail
+
+          # Two attempts before declaring failure: a single blip during an
+          # Azure revision swap is normal and should not page anyone.
+          for attempt in 1 2; do
+            CODE=$(curl -s -o /tmp/body.txt -w '%{http_code}' --max-time 25 "$BASE/health" || echo 000)
+            BODY=$(cat /tmp/body.txt 2>/dev/null || true)
+
+            if [ "$CODE" = "200" ] && echo "$BODY" | grep -q '"status":"ok"'; then
+              echo "OK (attempt $attempt): $BODY"
+              exit 0
+            fi
+
+            echo "Attempt $attempt failed — HTTP $CODE, body: ${BODY:-<empty>}"
+            [ "$attempt" = "1" ] && sleep 30
+          done
+
+          echo "::error::API health check failed. HTTP $CODE from $BASE/health"
+          exit 1
+
+      - name: Check an authenticated route still answers
+        env:
+          BASE: https://fitness-coach-api.livelysand-91f7619e.centralus.azurecontainerapps.io
+        run: |
+          set -uo pipefail
+          # 401 is the healthy answer here: it proves routing and the auth
+          # layer are alive, not just that the process is up. A 404 or 5xx
+          # would mean routes failed to register — which has happened before.
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 25 "$BASE/api/v1/me" || echo 000)
+          if [ "$CODE" != "401" ]; then
+            echo "::error::Expected 401 from /api/v1/me, got $CODE — routes may not have registered."
+            exit 1
+          fi
+          echo "OK: /api/v1/me returned 401 as expected"

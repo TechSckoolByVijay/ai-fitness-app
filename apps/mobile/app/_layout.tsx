@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ApiError } from '../src/api/client';
+import { initObservability, Sentry } from '../src/lib/observability';
 import { useAuthStore } from '../src/state/authStore';
 import { useThemeStore } from '../src/state/themeStore';
 
@@ -48,7 +49,10 @@ function shouldRetry(failureCount: number, error: unknown): boolean {
   return failureCount < 2;
 }
 
-export default function RootLayout() {
+// At module scope so a crash during the very first render is still reported.
+const errorReportingEnabled = initObservability();
+
+function RootLayout() {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -132,3 +136,10 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+/**
+ * Wrapping the root means an error anywhere in the tree is reported, not just
+ * the ones a component happened to catch. Left unwrapped when no DSN is
+ * configured so Expo Go and local dev behave exactly as before.
+ */
+export default errorReportingEnabled ? Sentry.wrap(RootLayout) : RootLayout;

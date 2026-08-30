@@ -87,6 +87,11 @@ const EnvSchema = z.object({
   /** Per-user daily caps on AI-backed calls — cost protection for the shared API key. */
   AI_DAILY_INTERPRET_LIMIT: z.coerce.number().int().positive().default(50),
   AI_DAILY_COACH_LIMIT: z.coerce.number().int().positive().default(100),
+  /**
+   * Error reporting. Absent is a supported state — local dev and tests run
+   * without it and must report nothing anywhere.
+   */
+  SENTRY_DSN: z.string().optional(),
   SPEECH_API_KEY: z.string().optional(),
   NUTRITION_API_KEY: z.string().optional(),
   /**

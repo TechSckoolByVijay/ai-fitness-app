@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { identifyUser } from '../lib/observability';
 import { secureStorage } from './secureStorage';
 
 const ACCESS_TOKEN_KEY = 'fitness_app.accessToken';
@@ -43,6 +44,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       secureStorage.setItemAsync(ACCESS_TOKEN_KEY, accessToken),
       secureStorage.setItemAsync(REFRESH_TOKEN_KEY, refreshToken),
     ]);
+    // Id only — enough to see "this user hit this repeatedly" without the
+    // report identifying a person.
+    identifyUser(user.id);
     set({ user, accessToken, status: 'authenticated' });
   },
 
@@ -56,6 +60,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   clearSession: async () => {
+    identifyUser(null);
     await Promise.all([
       secureStorage.deleteItemAsync(ACCESS_TOKEN_KEY),
       secureStorage.deleteItemAsync(REFRESH_TOKEN_KEY),

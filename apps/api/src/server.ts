@@ -1,10 +1,13 @@
 import { buildApp } from './app';
 import { loadEnv } from './config/env';
 import { startReminderScheduler } from './modules/notifications/reminder-scheduler';
+import { initObservability } from './lib/observability';
 import { ExpoPushProvider } from './providers/push/expo-push.provider';
 
 async function main() {
   const env = loadEnv();
+  // Before buildApp, so anything that throws during startup is still reported.
+  const errorReporting = initObservability(env);
   const app = await buildApp(env);
 
   // Must happen BEFORE listen(): Fastify refuses addHook once the instance
@@ -25,7 +28,9 @@ async function main() {
   try {
     await app.listen({ port: env.PORT, host: '0.0.0.0' });
     app.log.info(
-      `Fitness Coach API ready (env: ${env.NODE_ENV}, reminder scheduler: ${env.ENABLE_REMINDER_SCHEDULER ? 'on' : 'off'})`,
+      `Fitness Coach API ready (env: ${env.NODE_ENV}, reminder scheduler: ${
+        env.ENABLE_REMINDER_SCHEDULER ? 'on' : 'off'
+      }, error reporting: ${errorReporting ? 'on' : 'off'})`,
     );
   } catch (err) {
     app.log.error(err);

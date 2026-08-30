@@ -1,6 +1,7 @@
 import type { FastifyError, FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
 import { AppError } from '../lib/errors';
+import { captureError } from '../lib/observability';
 
 export function registerErrorHandler(app: FastifyInstance) {
   app.setErrorHandler((error: FastifyError, request, reply) => {
@@ -28,6 +29,9 @@ export function registerErrorHandler(app: FastifyInstance) {
     }
 
     request.log.error({ err: error }, 'Unhandled error');
+    // Only unexpected 5xx reach here — 4xx are the client's problem and would
+    // just be noise. AppError and ZodError have already returned above.
+    captureError(error, { route: `${request.method} ${request.routeOptions?.url ?? request.url}`, userId: request.user?.sub });
     reply.status(500).send({ error: 'INTERNAL_ERROR', message: 'Something went wrong' });
   });
 

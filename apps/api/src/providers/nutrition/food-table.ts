@@ -123,9 +123,46 @@ export const FOOD_TABLE: FoodTableEntry[] = [
   },
 ];
 
+/**
+ * Whether `name` ENDS with `alias` on a word boundary.
+ *
+ * Anchored to the end because English and Hindi dish names put the head noun
+ * last: "mixed vegetable sabzi" IS a sabzi, but "banana shake" is a shake,
+ * not a banana. Matching an alias anywhere in the string prices a banana
+ * shake as fruit — the same partial-overlap trap that once sent it to a
+ * banana pepper.
+ */
+function endsWithAlias(name: string, alias: string): boolean {
+  if (!name.endsWith(alias)) return false;
+  const before = name.length === alias.length ? ' ' : name[name.length - alias.length - 1];
+  return !/[a-z0-9]/.test(before);
+}
+
+/**
+ * Resolves a food name to a curated entry.
+ *
+ * Exact match first, then a head-noun match, because the vision model names
+ * dishes descriptively — "mixed vegetable sabzi", "plain steamed rice" — and
+ * an exact-only lookup missed every one of them, dropping the meal through
+ * to raw-ingredient values from USDA that carry no cooking oil.
+ *
+ * The longest alias wins, so "paneer curry" is not beaten by "curry".
+ */
 export function findFoodEntry(name: string): FoodTableEntry | undefined {
   const normalized = name.trim().toLowerCase();
-  return FOOD_TABLE.find(
+
+  const exact = FOOD_TABLE.find(
     (entry) => entry.canonicalName === normalized || entry.aliases.includes(normalized),
   );
+  if (exact) return exact;
+
+  let best: { entry: FoodTableEntry; length: number } | undefined;
+  for (const entry of FOOD_TABLE) {
+    for (const alias of [entry.canonicalName, ...entry.aliases]) {
+      if (endsWithAlias(normalized, alias) && (!best || alias.length > best.length)) {
+        best = { entry, length: alias.length };
+      }
+    }
+  }
+  return best?.entry;
 }
