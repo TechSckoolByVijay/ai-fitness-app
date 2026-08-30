@@ -53,17 +53,44 @@ export interface UpdateCheckResult {
  * immediately via a reload rather than waiting for yet another manual
  * relaunch.
  */
-export async function checkForUpdate(): Promise<UpdateCheckResult> {
+/**
+ * Neither the check nor the download can be allowed to run forever. A stalled
+ * fetch previously left the UI on a spinner indefinitely, and could leave a
+ * partially-applied update behind that bricked the app on next launch.
+ */
+const UPDATE_TIMEOUT_MS = 20_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timed out. Check your connection and try again.`)), ms);
+    }),
+  ]).finally(() => clearTimeout(timer)) as Promise<T>;
+}
+
+export async function checkForUpdate(timeoutMs: number = UPDATE_TIMEOUT_MS): Promise<UpdateCheckResult> {
   if (Updates.isEmbeddedLaunch && !Updates.channel) {
     // Running in a context expo-updates isn't wired up in at all (e.g. Expo Go).
     return { status: 'unsupported', detail: 'Updates are not available in this environment.' };
   }
   try {
-    const result = await Updates.checkForUpdateAsync();
+    const result = await withTimeout(Updates.checkForUpdateAsync(), timeoutMs, 'Checking for updates');
     if (!result.isAvailable) {
       return { status: 'up-to-date', detail: "You're already on the latest version." };
     }
-    await Updates.fetchUpdateAsync();
+
+    const fetched = await withTimeout(Updates.fetchUpdateAsync(), timeoutMs, 'Downloading the update');
+
+    // Only report success when a NEW bundle actually landed. The previous
+    // version discarded this result and reported 'updated' regardless, so the
+    // caller reloaded even when nothing usable had been downloaded — which is
+    // how devices ended up stuck on a loading screen.
+    if (!fetched.isNew) {
+      return { status: 'up-to-date', detail: "You're already on the latest version." };
+    }
+
     return { status: 'updated', detail: 'Update downloaded — restarting the app now.' };
   } catch (error) {
     return {

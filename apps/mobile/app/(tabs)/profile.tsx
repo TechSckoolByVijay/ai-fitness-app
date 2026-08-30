@@ -62,8 +62,16 @@ export default function ProfileScreen() {
     setUpdateMessage(null);
     const result = await checkForUpdate();
     if (result.status === 'updated') {
-      await Updates.reloadAsync();
-      return;
+      try {
+        await Updates.reloadAsync();
+        return;
+      } catch {
+        // Reloading failed, so the app is still on the old bundle. Say so
+        // rather than leaving a spinner running forever.
+        setIsCheckingUpdate(false);
+        setUpdateMessage('Update downloaded but could not restart. Close and reopen the app.');
+        return;
+      }
     }
     setIsCheckingUpdate(false);
     setUpdateMessage(result.detail);
