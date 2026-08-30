@@ -29,6 +29,11 @@ on:
 jobs:
   build-android:
     runs-on: ubuntu-latest
+    # A previous run hung in Gradle and was only stopped by GitHub's default
+    # 6-hour ceiling, burning six hours of runner minutes for no artifact.
+    # A local Android build that has not finished in 45 minutes is stuck, not
+    # slow -- fail fast and keep the logs instead.
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
