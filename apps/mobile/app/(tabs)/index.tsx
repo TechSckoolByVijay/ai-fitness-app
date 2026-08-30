@@ -61,6 +61,19 @@ export default function HomeScreen() {
       ? Math.round(dashboard.data.caloriesConsumed - dashboard.data.calorieTarget)
       : 0;
 
+  /**
+   * What is still available to eat. Exercise is added back because the
+   * budget is what the body needs at its usual activity level — calories
+   * burned beyond that genuinely widen the day's allowance, and it is the
+   * same arithmetic the AI coach reasons with.
+   */
+  const caloriesLeft =
+    dashboard.data?.calorieTarget != null
+      ? Math.round(
+          dashboard.data.calorieTarget - dashboard.data.caloriesConsumed + (dashboard.data.activeCalories ?? 0),
+        )
+      : null;
+
   const historyDays = history.data?.days ?? [];
   const streak = computeLoggingStreak(historyDays);
   const weekDays = historyDays.slice(-7).map((d) => ({ date: d.date, logged: d.caloriesConsumed > 0 }));
@@ -104,14 +117,28 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               </View>
+              {/* The number people actually act on is what is LEFT, not what
+                  has been eaten — "0 / 1699" made the reader do the
+                  subtraction themselves. The arithmetic is spelled out
+                  underneath so the figure is never a black box. */}
               <View className="mt-2 flex-row items-baseline gap-2">
                 <Text className="text-6xl font-extrabold tracking-tight text-white">
-                  {Math.round(dashboard.data.caloriesConsumed)}
+                  {caloriesLeft !== null ? Math.abs(caloriesLeft).toLocaleString() : '—'}
                 </Text>
                 <Text className="text-xl font-semibold text-white/80">
-                  / {dashboard.data.calorieTarget ?? '—'} kcal
+                  kcal {caloriesLeft !== null && caloriesLeft < 0 ? 'over' : 'left'}
                 </Text>
               </View>
+              {dashboard.data.calorieTarget != null ? (
+                <Text className="mt-1 text-[13px] font-medium text-white/75">
+                  {dashboard.data.calorieTarget.toLocaleString()} budget
+                  {' · '}
+                  {Math.round(dashboard.data.caloriesConsumed).toLocaleString()} eaten
+                  {dashboard.data.activeCalories > 0
+                    ? ` · ${Math.round(dashboard.data.activeCalories).toLocaleString()} burned`
+                    : ''}
+                </Text>
+              ) : null}
               <View className="mt-4">
                 <ProgressBar
                   value={dashboard.data.caloriesConsumed}

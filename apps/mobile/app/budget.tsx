@@ -140,9 +140,21 @@ export default function BudgetScreen() {
               accessibilityLabel="Daily calorie target"
             />
           ) : (
-            <Text variant="caption" className="text-gray-500 dark:text-gray-400">
-              Recalculated automatically whenever your weight, body info, or goal changes.
-            </Text>
+            <View className="gap-1">
+              {/* "1699 kcal" is meaningless without saying what it is made of.
+                  Spelled out because a target you do not understand is a
+                  target you do not trust. */}
+              <Text variant="caption" className="text-gray-500 dark:text-gray-400">
+                This is what your body burns in a day — the energy it uses just staying alive, worked
+                out from your age, sex, height and weight, then scaled for how active you are.
+              </Text>
+              <Text variant="caption" className="text-gray-500 dark:text-gray-400">
+                {profile.useCustomTargets
+                  ? 'Your goal adjustment is not applied to a custom target.'
+                  : 'Your goal then adjusts it — lower to lose weight, higher to gain.'}{' '}
+                Recalculated whenever your weight, body info, or goal changes.
+              </Text>
+            </View>
           )}
         </Card>
 
