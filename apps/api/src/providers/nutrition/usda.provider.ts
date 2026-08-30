@@ -1,5 +1,5 @@
 import type { NutritionEstimate } from '@fitness-app/shared';
-import type { Per100g } from './food-table';
+import { findFoodEntry, type FoodTableEntry, type Per100g } from './food-table';
 import { applyPreparationAdjustment, FALLBACK_PER_100G } from './nutrition-adjustments';
 import type { NutritionLookupInput, NutritionService } from './nutrition-service.interface';
 
@@ -69,46 +69,103 @@ function extractPer100g(food: FdcFood): Per100g {
 }
 
 /**
+ * Two words match if they are equal, or differ only by a plural "s"/"es".
+ *
+ * Deliberately a comparison rather than a canonical stem: stemming "apples"
+ * by stripping "es" yields "appl", which then fails to match "apple" — the
+ * exact bug that made a query for "apple" skip every "Apples, ... raw" entry
+ * and settle on "Strudel, apple".
+ */
+function sameWord(a: string, b: string): boolean {
+  if (a === b) return true;
+  for (const suffix of ['s', 'es']) {
+    if (a === b + suffix || b === a + suffix) return true;
+  }
+  return false;
+}
+
+/** Split on commas/whitespace, NOT all punctuation — a hyphenated compound like "Rose-apples" must stay one token, or it would wrongly match a query of "apple". */
+function tokenize(text: string): string[] {
+  return text.toLowerCase().split(/[,\s]+/).filter(Boolean);
+}
+
+/**
+ * FDC categories that are never what someone means when they log a meal.
+ * "chicken curry" otherwise resolves to "Spices, curry powder" at 325
+ * kcal/100g — a seasoning priced as if it were the dish.
+ */
+const NON_DISH_PREFIXES = ['spices', 'babyfood', 'leavening agents', 'gelatin desserts'];
+
+function isNonDish(food: FdcFood): boolean {
+  const description = food.description.toLowerCase();
+  return NON_DISH_PREFIXES.some((prefix) => description.startsWith(prefix));
+}
+
+/**
  * FDC's relevance ranking for a bare query surfaces dishes that merely
  * mention the food ahead of the plain food itself — "Croissants, apple"
- * over "Apples, ... raw"; "Flour, almond" over "Nuts, almonds ... raw" —
- * because USDA names generic foods "Category, variety, ..., raw" (comma
- * after the category, not the query word first).
+ * over "Apples, ... raw" — because USDA names generic foods
+ * "Category, variety, ..., raw". So a bare relevance pick is not enough.
  *
- * So: split each description on commas/whitespace (not all punctuation —
- * a hyphenated compound like "Rose-apples" must stay one token, or it
- * would wrongly match a query of "apple") and look for a token that is the
- * query (or its simple plural). Prefer a match whose description also says
- * "raw" — the closest thing to "the plain food" FDC has — before falling
- * back to a starts-with match, then a same-word match, then relevance rank.
+ * Matching is strongest-first:
+ *
+ *  1. Every query word appears. Among those, prefer one saying "raw" — the
+ *     closest thing FDC has to "the plain food".
+ *  2. Otherwise the HEAD word appears. English and Hindi compound food names
+ *     put the head noun last: a "banana shake" is a shake, an "aloo paratha"
+ *     is a paratha. Matching the head keeps the result in the right food
+ *     family. "raw" is NOT preferred here — for a prepared dish, a raw whole
+ *     food is the wrong answer.
+ *  3. Otherwise fall back to FDC's own relevance rank.
+ *
+ * A previous version matched on ANY single shared word and then preferred
+ * "raw", which sent "banana shake" to "Pepper, banana, raw" — a banana
+ * pepper, 27 kcal/100g. Partial word overlap must never outrank food family.
  */
 function pickBestMatch(foods: FdcFood[], query: string): FdcFood | undefined {
-  const q = query.trim().toLowerCase();
-  const tokenize = (s: string) => s.toLowerCase().split(/[,\s]+/).filter(Boolean);
-  const hasQueryWord = (f: FdcFood) => tokenize(f.description).some((w) => w.startsWith(q) || q.startsWith(w));
+  const queryWords = tokenize(query);
+  if (queryWords.length === 0) return foods[0];
 
-  const rawMatch = foods.find((f) => hasQueryWord(f) && /\braw\b/i.test(f.description));
-  if (rawMatch) return rawMatch;
+  const edible = foods.filter((f) => !isNonDish(f));
+  const pool = edible.length > 0 ? edible : foods;
 
-  const startsWithMatch = foods.find((f) => f.description.toLowerCase().startsWith(q));
-  if (startsWithMatch) return startsWithMatch;
+  const shortest = (candidates: FdcFood[]) =>
+    candidates.reduce((best, f) => (f.description.length < best.description.length ? f : best));
+  const describes = (f: FdcFood, word: string) => tokenize(f.description).some((t) => sameWord(t, word));
+  const isRaw = (f: FdcFood) => /\braw\b/i.test(f.description);
 
-  const wordMatches = foods.filter(hasQueryWord);
-  if (wordMatches.length > 0) {
-    return wordMatches.reduce((shortest, f) => (f.description.length < shortest.description.length ? f : shortest));
+  const fullMatches = pool.filter((f) => queryWords.every((w) => describes(f, w)));
+  if (fullMatches.length > 0) {
+    const raw = fullMatches.filter(isRaw);
+    return shortest(raw.length > 0 ? raw : fullMatches);
   }
+
+  const headWord = queryWords[queryWords.length - 1];
+  const headMatches = pool.filter((f) => describes(f, headWord));
+  if (headMatches.length > 0) return shortest(headMatches);
 
   return foods[0];
 }
 
-function resolveGrams(quantity: number, unit: string, estimatedWeightGrams?: number): number {
+function resolveGrams(
+  entry: FoodTableEntry | undefined,
+  quantity: number,
+  unit: string,
+  estimatedWeightGrams?: number,
+): number {
   if (estimatedWeightGrams) return estimatedWeightGrams;
   const normalizedUnit = unit.toLowerCase();
   if (['g', 'gram', 'grams'].includes(normalizedUnit)) return quantity;
   if (normalizedUnit === 'kg') return quantity * 1000;
-  // Unlike the mock table, arbitrary USDA foods have no curated
-  // gramsPerUnit map for "whole"/"cup"/etc — a generic serving-size
-  // assumption is the best available fallback for non-gram units.
+
+  // The curated table knows what a unit actually weighs — a chapati is 40g,
+  // a banana 118g. USDA offers no such mapping, so a bare "1 serving" there
+  // can only fall back to a flat 100g assumption.
+  if (entry) {
+    const perUnit = entry.gramsPerUnit[normalizedUnit] ?? entry.gramsPerUnit[entry.defaultUnit] ?? 100;
+    return perUnit * quantity;
+  }
+
   return quantity * 100;
 }
 
@@ -130,9 +187,15 @@ export class UsdaNutritionProvider implements NutritionService {
   constructor(private readonly apiKey: string) {}
 
   async lookup(input: NutritionLookupInput): Promise<NutritionEstimate> {
-    const per100g = await this.fetchPer100g(input.name);
+    // The curated table wins over USDA when it knows the food. USDA's
+    // Foundation/SR Legacy sets contain almost no composite Indian dishes,
+    // so a lookup for "chapati" or "dal" there matches something adjacent
+    // and wrong; the table has measured values AND per-unit weights for
+    // exactly those staples. USDA still covers everything else.
+    const entry = findFoodEntry(input.name);
+    const per100g = entry?.per100g ?? (await this.fetchPer100g(input.name));
     const adjusted = applyPreparationAdjustment(per100g, input.preparationMethod);
-    const grams = resolveGrams(input.quantity, input.unit, input.estimatedWeightGrams);
+    const grams = resolveGrams(entry, input.quantity, input.unit, input.estimatedWeightGrams);
     const scale = grams / 100;
 
     return {
@@ -144,7 +207,7 @@ export class UsdaNutritionProvider implements NutritionService {
       sugarG: adjusted.sugarG !== undefined ? round1(adjusted.sugarG * scale) : undefined,
       sodiumMg: adjusted.sodiumMg !== undefined ? round1(adjusted.sodiumMg * scale) : undefined,
       isEstimate: true,
-      source: per100g === FALLBACK_PER_100G ? 'mock' : 'usda',
+      source: entry || per100g === FALLBACK_PER_100G ? 'mock' : 'usda',
     };
   }
 

@@ -240,3 +240,133 @@ describe('UsdaNutritionProvider', () => {
     expect(lessOily.calories).toBeLessThan(normal.calories);
   });
 });
+
+/**
+ * Real descriptions and kcal values captured from FoodData Central, so these
+ * pin behaviour against what USDA actually returns rather than a tidied-up
+ * fixture. A user logging "one serving of banana shake" saw 27 kcal.
+ */
+function fdcFoods(entries: [string, number][]) {
+  return {
+    foods: entries.map(([description, calories]) => ({
+      description,
+      foodNutrients: [
+        { nutrientName: 'Energy', unitName: 'KCAL', value: calories },
+        { nutrientName: 'Protein', unitName: 'G', value: 1 },
+        { nutrientName: 'Carbohydrate, by difference', unitName: 'G', value: 1 },
+        { nutrientName: 'Total lipid (fat)', unitName: 'G', value: 1 },
+      ],
+    })),
+  };
+}
+
+describe('UsdaNutritionProvider food matching', () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  const mock = (entries: [string, number][]) =>
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: async () => fdcFoods(entries) });
+
+  // Exactly the FDC response for "banana shake".
+  const BANANA_SHAKE_RESULTS: [string, number][] = [
+    ['Bananas, dehydrated, or banana powder', 346],
+    ['BURGER KING, Vanilla Shake', 168],
+    ['Milk shakes, thick chocolate', 119],
+    ['Milk shakes, thick vanilla', 112],
+    ['Shake, fast food, vanilla', 148],
+    ['Pepper, banana, raw', 27],
+  ];
+
+  it('does not price a banana shake as a banana pepper', async () => {
+    mock(BANANA_SHAKE_RESULTS);
+    const provider = new UsdaNutritionProvider('test-key');
+
+    const result = await provider.lookup({ name: 'banana shake', quantity: 1, unit: 'serving' });
+
+    // "Pepper, banana, raw" shares one word and says "raw", which the old
+    // matcher treated as the best possible signal. 27 kcal for a shake.
+    expect(result.calories).not.toBeCloseTo(27, 0);
+    expect(result.calories).toBeGreaterThan(100);
+  });
+
+  it('matches a compound food on its head noun, so a shake resolves to a shake', async () => {
+    mock(BANANA_SHAKE_RESULTS);
+    const provider = new UsdaNutritionProvider('test-key');
+
+    // 100g serving of "Shake, fast food, vanilla" (148/100g).
+    const result = await provider.lookup({ name: 'banana shake', quantity: 1, unit: 'serving' });
+    expect(result.calories).toBe(148);
+  });
+
+  it('still prefers the plain raw food for a single-word query', async () => {
+    // Real FDC response for "apple": raw apples rank below prepared dishes.
+    mock([
+      ['Croissants, apple', 254],
+      ['Strudel, apple', 274],
+      ['Babyfood, juice, apple', 47],
+      ['Rose-apples, raw', 25],
+      ['Apples, dried, sulfured, uncooked', 243],
+      ['Apples, raw, without skin', 48],
+    ]);
+    const provider = new UsdaNutritionProvider('test-key');
+
+    const result = await provider.lookup({ name: 'apple', quantity: 100, unit: 'g' });
+    // Regression guard: stemming "apples" to "appl" made this miss every
+    // raw apple entry and settle on "Strudel, apple" at 274.
+    expect(result.calories).toBe(48);
+  });
+
+  it('does not match a hyphenated compound (Rose-apples) for an apple query', async () => {
+    mock([
+      ['Rose-apples, raw', 25],
+      ['Apples, raw, without skin', 48],
+    ]);
+    const provider = new UsdaNutritionProvider('test-key');
+
+    const result = await provider.lookup({ name: 'apple', quantity: 100, unit: 'g' });
+    expect(result.calories).toBe(48);
+  });
+
+  it('skips seasoning entries, so a curry is not priced as curry powder', async () => {
+    mock([
+      ['Spices, curry powder', 325],
+      ['SMART SOUP, Thai Coconut Curry', 36],
+    ]);
+    const provider = new UsdaNutritionProvider('test-key');
+
+    const result = await provider.lookup({ name: 'chicken curry', quantity: 100, unit: 'g' });
+    expect(result.calories).not.toBe(325);
+  });
+
+  it('uses the curated table for Indian staples instead of a USDA near-miss', async () => {
+    // Whatever USDA would return is irrelevant: the table has chapati.
+    mock([['Bread, naan, plain, commercially prepared, refrigerated', 291]]);
+    const provider = new UsdaNutritionProvider('test-key');
+
+    const result = await provider.lookup({ name: 'chapati', quantity: 2, unit: 'medium' });
+
+    // Table: 297 kcal/100g, 40g per medium chapati -> 2 x 40g = 80g.
+    expect(result.calories).toBe(237.6);
+    expect(result.source).toBe('mock');
+    // The table answered, so no USDA call was needed at all.
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('gives a curated food a real per-unit weight rather than assuming 100g', async () => {
+    mock([['Bananas, raw', 89]]);
+    const provider = new UsdaNutritionProvider('test-key');
+
+    const result = await provider.lookup({ name: 'banana', quantity: 1, unit: 'whole' });
+    // 118g per whole banana at 89 kcal/100g. The USDA path would have
+    // assumed a flat 100g and reported 89.
+    expect(result.calories).toBe(105);
+  });
+});
