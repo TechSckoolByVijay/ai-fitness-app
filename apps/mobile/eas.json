@@ -11,7 +11,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://lapped-earpiece-cortex.ngrok-free.dev/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://lapped-earpiece-cortex.ngrok-free.dev/api/v1",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "468817844738-s4gmpcc0csl4c8t3ebevrid3sj9sr8hp.apps.googleusercontent.com"
       },
       "channel": "development"
     },
@@ -21,13 +22,17 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://fitness-coach-api.livelysand-91f7619e.centralus.azurecontainerapps.io/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://fitness-coach-api.livelysand-91f7619e.centralus.azurecontainerapps.io/api/v1",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "468817844738-s4gmpcc0csl4c8t3ebevrid3sj9sr8hp.apps.googleusercontent.com"
       },
       "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "468817844738-s4gmpcc0csl4c8t3ebevrid3sj9sr8hp.apps.googleusercontent.com"
+      }
     }
   },
   "submit": {

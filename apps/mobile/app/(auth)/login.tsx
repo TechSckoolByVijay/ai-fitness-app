@@ -2,6 +2,7 @@ import { Link } from 'expo-router';
 import { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { ApiError } from '../../src/api/client';
+import { GoogleSignInButton } from '../../src/components/GoogleSignInButton';
 import { Button } from '../../src/components/ui/Button';
 import { Text } from '../../src/components/ui/Text';
 import { TextField } from '../../src/components/ui/TextField';
@@ -71,6 +72,7 @@ export default function LoginScreen() {
             disabled={!email || !password}
             onPress={() => login.mutate({ email, password })}
           />
+          <GoogleSignInButton />
         </View>
 
         <View className="mt-8 flex-row justify-center gap-1">
