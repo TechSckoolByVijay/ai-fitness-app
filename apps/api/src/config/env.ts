@@ -89,7 +89,16 @@ const EnvSchema = z.object({
   AI_DAILY_COACH_LIMIT: z.coerce.number().int().positive().default(100),
   SPEECH_API_KEY: z.string().optional(),
   NUTRITION_API_KEY: z.string().optional(),
+  /**
+   * Google OAuth client IDs. Both are accepted audiences for an ID token:
+   * the native Android sign-in issues tokens for the WEB client id (that is
+   * how the library is designed), while the Android client id authorises the
+   * app itself by package name + signing fingerprint. Listing both means the
+   * server keeps working whichever one Google stamps into `aud`.
+   */
   GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_ANDROID_CLIENT_ID: z.string().optional(),
+  /** Unused for sign-in — kept only for a future auth-code exchange (refresh tokens). */
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 }).superRefine((env, ctx) => {
   // Only meaningful when a real provider is actually going to be built.

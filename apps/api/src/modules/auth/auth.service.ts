@@ -122,3 +122,20 @@ export async function logoutUser(
     data: { revokedAt: new Date() },
   });
 }
+
+/**
+ * Completes a Google sign-in for an already-verified identity.
+ *
+ * Issues the same access/refresh pair as email login, so everything
+ * downstream is unaware of how the user authenticated.
+ */
+export async function signInWithGoogle(
+  prisma: PrismaClient,
+  env: Env,
+  signAccessToken: SignAccessToken,
+  user: { id: string; email: string; name: string; profilePhotoUrl: string | null },
+): Promise<{ user: AuthUserRecord } & AuthTokens> {
+  const accessToken = signAccessToken(user.id);
+  const refreshToken = await issueRefreshToken(prisma, env, user.id);
+  return { user: toAuthUser(user), accessToken, refreshToken };
+}

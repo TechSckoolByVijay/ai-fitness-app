@@ -9,6 +9,7 @@ export * from './schemas/event-interpret.schema';
 export * from './schemas/food-entry.schema';
 export * from './schemas/exercise-entry.schema';
 export * from './schemas/auth.schema';
+export * from './schemas/google-auth.schema';
 export * from './schemas/budget.schema';
 export * from './schemas/units.schema';
 export * from './schemas/profile.schema';

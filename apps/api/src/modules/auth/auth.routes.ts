@@ -1,11 +1,13 @@
 import {
   AuthResponseSchema,
+  GoogleAuthRequestSchema,
   LoginRequestSchema,
   RefreshRequestSchema,
   RegisterRequestSchema,
 } from '@fitness-app/shared';
 import type { FastifyInstance } from 'fastify';
-import { loginUser, logoutUser, refreshTokens, registerUser } from './auth.service';
+import { loginUser, logoutUser, refreshTokens, registerUser, signInWithGoogle } from './auth.service';
+import { findOrCreateGoogleUser, verifyGoogleIdToken } from './google-auth.service';
 
 // Stricter than the app-wide default (app.ts) — register/login are the
 // highest-value target for credential-stuffing or spam-account abuse once
@@ -25,6 +27,16 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/auth/login', { config: { rateLimit: AUTH_RATE_LIMIT } }, async (request, reply) => {
     const body = LoginRequestSchema.parse(request.body);
     const result = await loginUser(app.prisma, app.env, signAccessToken, body);
+    reply.send(AuthResponseSchema.parse(result));
+  });
+
+  app.post('/auth/google', { config: { rateLimit: AUTH_RATE_LIMIT } }, async (request, reply) => {
+    const body = GoogleAuthRequestSchema.parse(request.body);
+    // Verify first, then look up. The client's claims about who it is are
+    // never consulted — identity comes only from Google's signed token.
+    const identity = await verifyGoogleIdToken(app.env, body.idToken);
+    const user = await findOrCreateGoogleUser(app.prisma, identity);
+    const result = await signInWithGoogle(app.prisma, app.env, signAccessToken, user);
     reply.send(AuthResponseSchema.parse(result));
   });
 
