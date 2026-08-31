@@ -63,6 +63,12 @@ export interface CalorieBurnInput {
   distanceKm?: number;
   intensity?: Intensity;
   weightKg: number;
+  /**
+   * How hard this user actually trains, relative to the MET tables. Those
+   * tables are a population average; someone who lifts heavy for an hour and
+   * someone who strolls through the same hour both log "gym".
+   */
+  intensityMultiplier?: number;
 }
 
 export interface CalorieBurnResult {
@@ -100,7 +106,10 @@ export function calculateCaloriesBurned(input: CalorieBurnInput): CalorieBurnRes
   const met = metTable[intensity];
 
   const durationHours = durationMinutes / 60;
-  const caloriesBurned = met * input.weightKg * durationHours;
+  // Clamped so a bad multiplier cannot make the number absurd — the same
+  // reasoning as the weight cap in resolve-grams.
+  const multiplier = Math.min(Math.max(input.intensityMultiplier ?? 1, 0.5), 2);
+  const caloriesBurned = met * input.weightKg * durationHours * multiplier;
 
   return {
     durationMinutes: Math.round(durationMinutes * 10) / 10,

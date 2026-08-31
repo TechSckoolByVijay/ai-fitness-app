@@ -105,8 +105,13 @@ export function resolveGrams(
   quantity: number,
   unit: string,
   estimatedWeightGrams?: number,
+  /**
+   * What this user says their units weigh. Their answer outranks the standard
+   * table AND any weight the model guessed: they measured it, we did not.
+   */
+  unitWeightOverrides?: Record<string, number>,
 ): number {
-  const grams = resolveRawGrams(entry, quantity, unit, estimatedWeightGrams);
+  const grams = resolveRawGrams(entry, quantity, unit, estimatedWeightGrams, unitWeightOverrides);
   // Clamp last, so every path is covered — including a model-supplied
   // estimatedWeightGrams, which is just as capable of being absurd.
   return Math.min(Math.max(grams, 0), MAX_PLAUSIBLE_GRAMS);
@@ -117,11 +122,18 @@ function resolveRawGrams(
   quantity: number,
   unit: string,
   estimatedWeightGrams?: number,
+  unitWeightOverrides?: Record<string, number>,
 ): number {
-  if (estimatedWeightGrams && Number.isFinite(estimatedWeightGrams)) return estimatedWeightGrams;
-
   const normalized = unit.trim().toLowerCase();
   const amount = Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+
+  // Checked before everything, including estimatedWeightGrams: the user told
+  // us what their scoop weighs, and that beats both the standard table and a
+  // model's guess from a photo.
+  const override = unitWeightOverrides?.[normalized] ?? unitWeightOverrides?.[normalizeUnit(normalized)];
+  if (override !== undefined) return override * amount;
+
+  if (estimatedWeightGrams && Number.isFinite(estimatedWeightGrams)) return estimatedWeightGrams;
 
   // --- Units that ARE a measurement: the quantity is the amount itself. ---
   if (GRAM_UNITS.has(normalized)) return amount;

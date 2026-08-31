@@ -21,6 +21,7 @@ import { healthRoutes } from './modules/health/health.routes';
 import { notificationPreferencesRoutes } from './modules/notifications/notification-preferences.routes';
 import { onboardingRoutes } from './modules/onboarding/onboarding.routes';
 import { sleepRoutes } from './modules/sleep/sleep.routes';
+import { userPreferencesRoutes } from './modules/users/user-preferences.routes';
 import { usersRoutes } from './modules/users/users.routes';
 import { waterRoutes } from './modules/water/water.routes';
 import { weightRoutes } from './modules/weight/weight.routes';
@@ -108,6 +109,7 @@ export async function buildApp(env: Env) {
   await app.register(sleepRoutes, { prefix: '/api/v1' });
   await app.register(notificationPreferencesRoutes, { prefix: '/api/v1' });
   await app.register(healthRoutes, { prefix: '/api/v1' });
+  await app.register(userPreferencesRoutes, { prefix: '/api/v1' });
   await app.register(favoritesRoutes, { prefix: '/api/v1' });
   await app.register(frequentMealsRoutes, { prefix: '/api/v1' });
   await app.register(insightsRoutes, { prefix: '/api/v1' });

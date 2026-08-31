@@ -16,6 +16,8 @@ export function interpretExerciseEvent(
   event: ExerciseExtractionEvent,
   sourceText: string,
   weightKg: number,
+  /** Per-activity multiplier, falling back to the user's "default" if set. */
+  intensityMultiplier?: number,
 ): InterpretedActivity {
   const burn = calculateCaloriesBurned({
     activityType: event.activityType,
@@ -24,6 +26,7 @@ export function interpretExerciseEvent(
     distanceKm: event.distanceKm,
     intensity: event.intensity,
     weightKg,
+    intensityMultiplier,
   });
 
   const tier = classifyItemConfidence(event.confidence);

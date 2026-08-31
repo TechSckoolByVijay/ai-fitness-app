@@ -175,7 +175,7 @@ export class UsdaNutritionProvider implements NutritionService {
     const entry = findFoodEntry(input.name);
     const per100g = entry?.per100g ?? (await this.fetchPer100g(input.name));
     const adjusted = applyPreparationAdjustment(per100g, input.preparationMethod);
-    const grams = resolveGrams(entry, input.quantity, input.unit, input.estimatedWeightGrams);
+    const grams = resolveGrams(entry, input.quantity, input.unit, input.estimatedWeightGrams, input.unitWeightOverrides);
     const scale = grams / 100;
 
     return {

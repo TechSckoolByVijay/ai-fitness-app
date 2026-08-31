@@ -1,4 +1,5 @@
 import { HealthExtractionResultSchema, type EventInterpretRequest, type InterpretedHealthEvent } from '@fitness-app/shared';
+import { NO_OVERRIDES, type UserOverrides } from '../users/user-preferences.service';
 import { InterpretationFailedError } from '../../lib/errors';
 import type { AIProvider } from '../../providers/ai/ai-provider.interface';
 import type { NutritionService } from '../../providers/nutrition/nutrition-service.interface';
@@ -28,6 +29,11 @@ export async function interpretHealthEvents(
   deps: EventPipelineDeps,
   weightKg: number,
   input: EventInterpretRequest,
+  /**
+   * This user's own corrections to the standard tables. Defaulted so every
+   * existing caller and test keeps working unchanged.
+   */
+  overrides: UserOverrides = NO_OVERRIDES,
 ): Promise<InterpretedHealthEvent[]> {
   const sourceText = input.imageBase64
     ? '[Photo]'
@@ -66,10 +72,13 @@ export async function interpretHealthEvents(
   return Promise.all(
     parsed.data.events.map(async (event): Promise<InterpretedHealthEvent> => {
       if (event.type === 'exercise') {
-        const activity = interpretExerciseEvent(event, sourceText, weightKg);
+        // A per-activity multiplier wins over the user's blanket "default".
+        const multiplier =
+          overrides.activityIntensity[event.activityType] ?? overrides.activityIntensity.default;
+        const activity = interpretExerciseEvent(event, sourceText, weightKg, multiplier);
         return { type: 'exercise', activity };
       }
-      const meal = await interpretFoodEvent(event, sourceText, deps.nutritionService);
+      const meal = await interpretFoodEvent(event, sourceText, deps.nutritionService, overrides);
       return { type: 'food', meal };
     }),
   );

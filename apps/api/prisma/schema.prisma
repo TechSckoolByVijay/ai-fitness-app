@@ -182,6 +182,7 @@ model User {
   favoriteFoods           FavoriteFood[]
   notificationPreferences NotificationPreference[]
   pushTokens              PushToken[]
+  preferences             UserPreference[]
   healthIntegrations      HealthIntegration[]
   aiConversations         AiConversation[]
   feedback                UserFeedback[]
@@ -524,6 +525,33 @@ model PushToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// Standard tables are the default; a user who tells us their scoop is 35g
+/// gets 35g from then on. Deliberately one flexible table keyed by (kind,
+/// key) rather than a column per preference, so a new kind of override needs
+/// no migration.
+enum UserPreferenceKind {
+  /// key = a unit word ("scoop", "bowl"), value = { grams }
+  unit_weight
+  /// key = an ActivityType ("gym", "running"), value = { multiplier }
+  activity_intensity
+}
+
+model UserPreference {
+  id        String             @id @default(uuid()) @db.Uuid
+  userId    String             @db.Uuid
+  kind      UserPreferenceKind
+  /// Lower-cased at write time so lookups never depend on how it was typed.
+  key       String
+  valueJson Json
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, key])
+  @@index([userId, kind])
 }
 
 model HealthIntegration {

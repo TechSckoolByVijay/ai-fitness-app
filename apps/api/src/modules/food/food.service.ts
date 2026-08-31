@@ -9,6 +9,7 @@ import {
 import { findFoodEntry } from '../../providers/nutrition/food-table';
 import { isAmbiguousUnit, sizeOptionsFor } from '../../providers/nutrition/resolve-grams';
 import type { NutritionService } from '../../providers/nutrition/nutrition-service.interface';
+import { NO_OVERRIDES, type UserOverrides } from '../users/user-preferences.service';
 import {
   classifyItemConfidence,
   classifyMealConfidence,
@@ -61,7 +62,11 @@ function adjustConfidenceForGenericFood(name: string, aiConfidence: number): num
 function adjustConfidenceForAmbiguousUnit(
   item: { unit: string; estimatedWeightGrams?: number },
   aiConfidence: number,
+  overrides: UserOverrides,
 ): number {
+  // Once someone has told us what their bowl weighs, it stops being a
+  // question. Asking again would make the memory feel worthless.
+  if (overrides.unitWeights[item.unit.trim().toLowerCase()] !== undefined) return aiConfidence;
   if (item.estimatedWeightGrams) return aiConfidence;
   if (!isAmbiguousUnit(item.unit)) return aiConfidence;
   return Math.min(aiConfidence, GENERIC_FOOD_LOW_CONFIDENCE_FLOOR);
@@ -118,6 +123,7 @@ export async function interpretFoodEvent(
   event: FoodExtractionEvent,
   sourceText: string,
   nutritionService: NutritionService,
+  overrides: UserOverrides = NO_OVERRIDES,
 ): Promise<InterpretedMeal> {
   const items: InterpretedFoodItem[] = await Promise.all(
     event.items.map(async (item) => {
@@ -127,11 +133,13 @@ export async function interpretFoodEvent(
         unit: item.unit,
         estimatedWeightGrams: item.estimatedWeightGrams,
         preparationMethod: item.preparationMethod,
+        unitWeightOverrides: overrides.unitWeights,
       });
 
       const confidence = adjustConfidenceForAmbiguousUnit(
         item,
         adjustConfidenceForGenericFood(item.name, item.confidence),
+        overrides,
       );
 
       return {

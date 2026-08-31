@@ -2,6 +2,7 @@ import { EventInterpretRequestSchema, EventInterpretResponseSchema } from '@fitn
 import type { FastifyInstance } from 'fastify';
 import { consumeAiQuota } from '../ai-quota/ai-quota.service';
 import { DEFAULT_WEIGHT_KG } from '../exercise/calorie-burn';
+import { loadUserOverrides } from '../users/user-preferences.service';
 import { interpretHealthEvents } from './event.service';
 
 export async function eventRoutes(app: FastifyInstance) {
@@ -10,7 +11,10 @@ export async function eventRoutes(app: FastifyInstance) {
 
     await consumeAiQuota(app.prisma, request.user.sub, 'interpret', app.env.AI_DAILY_INTERPRET_LIMIT);
 
-    const profile = await app.prisma.profile.findUnique({ where: { userId: request.user.sub } });
+    const [profile, overrides] = await Promise.all([
+      app.prisma.profile.findUnique({ where: { userId: request.user.sub } }),
+      loadUserOverrides(app.prisma, request.user.sub),
+    ]);
     const weightKg = profile?.currentWeightKg ? Number(profile.currentWeightKg) : DEFAULT_WEIGHT_KG;
 
     const events = await interpretHealthEvents(
@@ -21,6 +25,7 @@ export async function eventRoutes(app: FastifyInstance) {
       },
       weightKg,
       body,
+      overrides,
     );
 
     reply.send(EventInterpretResponseSchema.parse({ events }));

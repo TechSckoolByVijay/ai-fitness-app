@@ -6,6 +6,8 @@ export interface NutritionLookupInput {
   unit: string;
   estimatedWeightGrams?: number;
   preparationMethod?: string;
+  /** This user's own unit weights, which outrank the standard tables. */
+  unitWeightOverrides?: Record<string, number>;
 }
 
 export interface NutritionService {
