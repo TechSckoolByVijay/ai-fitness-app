@@ -28,6 +28,18 @@ export const InterpretedMealSchema = z.object({
   autoLog: z.boolean(),
   clarifyingQuestion: z.string().optional(),
   quickOptions: z.array(z.string()).optional(),
+  /**
+   * Present when the question is specifically about how big a container was.
+   * Carried alongside quickOptions rather than replacing them so the answer
+   * can be remembered: the client needs the unit and the gram figure, which
+   * a display string cannot reliably be parsed back into.
+   */
+  sizeChoice: z
+    .object({
+      unit: z.string(),
+      options: z.array(z.object({ label: z.string(), grams: z.number() })),
+    })
+    .optional(),
   estimatedTotals: NutritionEstimateSchema,
 });
 export type InterpretedMeal = z.infer<typeof InterpretedMealSchema>;

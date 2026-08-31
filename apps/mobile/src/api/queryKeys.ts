@@ -8,6 +8,7 @@ export const queryKeys = {
   waterEntries: (date?: string) => ['water', 'entries', date ?? 'all'] as const,
   weightEntries: ['weight', 'entries'] as const,
   sleepEntries: ['sleep', 'entries'] as const,
+  userPreferences: ['user', 'preferences'] as const,
   healthConnections: ['health', 'connections'] as const,
   notificationPreferences: ['notification-preferences'] as const,
   favorites: ['favorites'] as const,

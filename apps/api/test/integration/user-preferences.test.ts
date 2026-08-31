@@ -26,7 +26,7 @@ describe('user preferences', () => {
     await app.close();
   });
 
-  const put = (token: string, payload: unknown) =>
+  const put = (token: string, payload: Record<string, unknown>) =>
     app.inject({ method: 'PUT', url: '/api/v1/me/preferences', headers: { authorization: `Bearer ${token}` }, payload });
 
   const list = async (token: string) =>
@@ -90,9 +90,9 @@ describe('user preferences', () => {
   });
 
   it('applies an activity intensity multiplier to calories burned', async () => {
-    const base = calculateCaloriesBurned({ activityType: 'gym', durationMinutes: 30, weightKg: 70 });
+    const base = calculateCaloriesBurned({ activityType: 'gym_workout', durationMinutes: 30, weightKg: 70 });
     const harder = calculateCaloriesBurned({
-      activityType: 'gym',
+      activityType: 'gym_workout',
       durationMinutes: 30,
       weightKg: 70,
       intensityMultiplier: 1.5,
@@ -103,13 +103,13 @@ describe('user preferences', () => {
 
   it('clamps an absurd multiplier', async () => {
     const wild = calculateCaloriesBurned({
-      activityType: 'gym',
+      activityType: 'gym_workout',
       durationMinutes: 30,
       weightKg: 70,
       intensityMultiplier: 99,
     });
     const capped = calculateCaloriesBurned({
-      activityType: 'gym',
+      activityType: 'gym_workout',
       durationMinutes: 30,
       weightKg: 70,
       intensityMultiplier: 2,
@@ -119,8 +119,8 @@ describe('user preferences', () => {
 
   it('rejects a multiplier outside the credible range at the API', async () => {
     const token = await registerAndGetToken(app, 'prefs-multiplier');
-    expect((await put(token, { kind: 'activity_intensity', key: 'gym', multiplier: 10 })).statusCode).toBe(400);
-    expect((await put(token, { kind: 'activity_intensity', key: 'gym', multiplier: 1.4 })).statusCode).toBe(200);
+    expect((await put(token, { kind: 'activity_intensity', key: 'gym_workout', multiplier: 10 })).statusCode).toBe(400);
+    expect((await put(token, { kind: 'activity_intensity', key: 'gym_workout', multiplier: 1.4 })).statusCode).toBe(200);
   });
 
   it('lets a preference be deleted, returning to the standard tables', async () => {

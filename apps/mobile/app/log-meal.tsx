@@ -4,6 +4,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import { ApiError } from '../src/api/client';
 import { ActivityInterpretationCard } from '../src/components/ActivityInterpretationCard';
 import { InterpretationCard } from '../src/components/InterpretationCard';
+import { useUpsertUserPreference } from '../src/hooks/useUserPreferences';
 import { Button } from '../src/components/ui/Button';
 import { Chip } from '../src/components/ui/Chip';
 import { Text } from '../src/components/ui/Text';
@@ -50,6 +51,7 @@ function eventEmoji(event: InterpretedHealthEvent): string {
 
 export default function LogMealScreen() {
   const isAuthenticated = useRequireAuth();
+  const rememberUnitWeight = useUpsertUserPreference();
   const [state, dispatch] = useVoiceMachine();
   const [text, setText] = useState('');
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
@@ -475,6 +477,11 @@ export default function LogMealScreen() {
                 onAdjustCalories={(itemIndex, calories) => adjustCalories(index, itemIndex, calories)}
                 onRemoveItem={(itemIndex) => removeItem(index, itemIndex)}
                 onQuickOption={(option) => runQuickOptionAt(index, option)}
+                onRememberSize={(unit, grams) =>
+                  // Fire-and-forget: the answer is already being applied to
+                  // this meal, and a failed save must not block logging.
+                  rememberUnitWeight.mutate({ kind: 'unit_weight', key: unit, grams })
+                }
                 onRetype={() => removeEventAt(index)}
               />
             ) : (

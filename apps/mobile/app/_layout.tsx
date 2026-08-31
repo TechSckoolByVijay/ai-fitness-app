@@ -100,6 +100,10 @@ function RootLayout() {
             options={{ presentation: 'modal', headerShown: true, title: 'Log sleep' }}
           />
           <Stack.Screen
+            name="preferences"
+            options={{ presentation: 'modal', headerShown: true, title: 'Your preferences' }}
+          />
+          <Stack.Screen
             name="budget"
             options={{ presentation: 'modal', headerShown: true, title: 'Calorie budget' }}
           />

@@ -72,9 +72,13 @@ function adjustConfidenceForAmbiguousUnit(
   return Math.min(aiConfidence, GENERIC_FOOD_LOW_CONFIDENCE_FLOOR);
 }
 
-function buildClarifyingQuestion(
-  items: InterpretedFoodItem[],
-): { clarifyingQuestion: string; quickOptions: string[] } | undefined {
+interface Clarification {
+  clarifyingQuestion: string;
+  quickOptions: string[];
+  sizeChoice?: { unit: string; options: { label: string; grams: number }[] };
+}
+
+function buildClarifyingQuestion(items: InterpretedFoodItem[]): Clarification | undefined {
   const lowItem = items.find((item) => item.tier === 'low');
   if (!lowItem) return undefined;
 
@@ -88,6 +92,9 @@ function buildClarifyingQuestion(
         // Phrased so the answer re-interprets naturally, and with the gram
         // figure shown so the choice is informed rather than a guess.
         quickOptions: [...options.map((o) => `${o.label} (about ${o.grams} g)`), 'Add manually'],
+        // Structured too, so answering can be offered as a preference to
+        // remember — a display string cannot be parsed back reliably.
+        sizeChoice: { unit: lowItem.unit.trim().toLowerCase(), options },
       };
     }
   }
@@ -169,6 +176,7 @@ export async function interpretFoodEvent(
     tier: mealTier,
     autoLog,
     clarifyingQuestion: clarification?.clarifyingQuestion,
+    sizeChoice: clarification?.sizeChoice,
     quickOptions: clarification?.quickOptions,
     estimatedTotals: sumNutrition(items.map((item) => item.nutrition)),
   };

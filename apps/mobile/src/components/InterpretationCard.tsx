@@ -15,6 +15,8 @@ interface InterpretationCardProps {
   onAdjustCalories: (index: number, calories: number) => void;
   onRemoveItem: (index: number) => void;
   onQuickOption: (option: string) => void;
+  /** Called when a size answer is worth storing as a lasting preference. */
+  onRememberSize?: (unit: string, grams: number) => void;
   onRetype: () => void;
 }
 
@@ -32,6 +34,7 @@ export function InterpretationCard({
   onAdjustCalories,
   onRemoveItem,
   onQuickOption,
+  onRememberSize,
   onRetype,
 }: InterpretationCardProps) {
   const tierInfo = TIER_COPY[meal.tier];
@@ -101,10 +104,32 @@ export function InterpretationCard({
         <View className="gap-2">
           <Text variant="body">{meal.clarifyingQuestion}</Text>
           <View className="flex-row flex-wrap gap-2">
-            {(meal.quickOptions ?? []).map((option) => (
-              <Chip key={option} label={option} selected={false} onPress={() => onQuickOption(option)} />
-            ))}
+            {(meal.quickOptions ?? []).map((option) => {
+              // A size answer is worth remembering: their bowl will be the
+              // same size tomorrow. Answering also stores it, so the app
+              // stops asking — which is the whole point of asking once.
+              const size = meal.sizeChoice?.options.find((o) => option.startsWith(o.label));
+              return (
+                <Chip
+                  key={option}
+                  label={option}
+                  selected={false}
+                  onPress={() => {
+                    if (size && meal.sizeChoice) {
+                      onRememberSize?.(meal.sizeChoice.unit, size.grams);
+                    }
+                    onQuickOption(option);
+                  }}
+                />
+              );
+            })}
           </View>
+          {meal.sizeChoice ? (
+            <Text variant="caption" className="text-gray-500 dark:text-gray-400">
+              We&apos;ll remember this size for a {meal.sizeChoice.unit} and stop asking. You can change
+              it in Profile → Your preferences.
+            </Text>
+          ) : null}
           <Button label="Type it differently" variant="ghost" onPress={onRetype} />
         </View>
       ) : (

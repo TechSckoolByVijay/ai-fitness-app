@@ -190,6 +190,18 @@ export default function ProfileScreen() {
 
           <Card>
             <View className="flex-row items-center justify-between">
+              <View className="flex-1 pr-3">
+                <Text variant="subtitle">Your preferences</Text>
+                <Text variant="caption" className="text-gray-500 dark:text-gray-400">
+                  Tell the app what your scoop or bowl weighs, and how hard you train.
+                </Text>
+              </View>
+              <Button label="Open" variant="ghost" onPress={() => router.push('/preferences')} />
+            </View>
+          </Card>
+
+          <Card>
+            <View className="flex-row items-center justify-between">
               <View>
                 <Text variant="subtitle">Units</Text>
                 <Text variant="caption" className="text-gray-500 dark:text-gray-400">
