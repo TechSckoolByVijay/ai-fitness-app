@@ -1106,6 +1106,100 @@ error when the hook is moved back after listen.
 Takeaway: `inject()`-only coverage cannot catch startup-ordering faults. Any
 future change to `server.ts` should be reflected in the boot test.
 
+## 30-31 Aug — accuracy, memory, observability
+
+**Google Sign-In** end to end: `/auth/google` verifies the ID token with
+Google's library and checks its audience against our client ids. Works for any
+Google account without publishing or test users, because basic identity scopes
+do not invoke the consent screen. Confirmed working on device.
+
+**Home card rewrite.** "0 / 1699" made the reader do the subtraction. It now
+answers the two questions the screen exists for in sentences, framed by goal —
+calories are a CEILING when losing, a FLOOR when gaining — with the arithmetic
+folded behind "More". Protein never colours the card red; falling short of a
+floor is not a failure.
+
+**Four unit bugs, one root cause.** `resolveGrams` had one fallback serving two
+incompatible meanings of `quantity`: a count ("2 rotis") versus a measurement
+("200 ml"). Anything unrecognised took the count path at 100g each — so 200ml
+of curd logged as 30,200 kcal (20 kilograms), a scoop of protein powder at 3x,
+and half a pound at a fifth of its weight. Split explicitly, with a 3kg
+plausibility cap because a misread unit fails by orders of magnitude.
+
+**Photo interpretation named ingredients, not dishes.** The prompt asked for
+"every distinct food item", so a cooked sabzi decomposed into raw peas, tomato
+and capsicum — priced as salad, with no cooking oil. Now names the dish.
+
+**Per-user memory.** Standard tables are an average of everyone, so they are
+wrong for each particular person. `UserPreference` stores unit weights ("my
+scoop is 35g") and workout intensity, both bounded and clamped, both visible
+and deletable on a Preferences screen. A user's figure outranks the standard
+table AND the vision model's guess. Answering "how big was the bowl?" stores
+the answer, so it never asks twice.
+
+**Ambiguity now asks instead of guessing.** Container words (bowl, katori,
+plate, handful) route through the existing low-confidence clarification path
+with size options and real gram figures. Deliberately narrow: most unit
+problems are missing conversions, not real ambiguity.
+
+**Observability.** Sentry on API and app, off entirely without a DSN, with
+scrubbing that drops request bodies and denylists every key at every depth —
+this app's ordinary payloads ARE health data. Uptime is a scheduled GitHub
+Action, since logs cannot detect that a dead container is dead.
+
+**Update-check hardened.** It discarded `fetchUpdateAsync`'s `isNew` and
+reloaded regardless, restarting into a bundle that was never downloaded —
+three devices stuck on a white screen. Now verified and timed out.
+
+## Open — reviewed 31 Aug
+
+### Known defects
+
+- **Calorie estimates vary run to run.** The same plate returned 200 and 607
+  kcal. Root cause: the Azure `gpt-5.6-luna` deployment rejects `temperature`,
+  so the code drops it and the model samples at its default instead of the
+  intended `0.1`. Untested fix: compare against `AI_PROVIDER=openai` with
+  `gpt-4o`, where the value is honoured.
+- **"TODA"** — the Home card header is clipped; should read "TODAY".
+- **Double counting at high activity levels** — the TDEE multiplier already
+  assumes exercise, and logged workouts are added on top. Harmless at
+  sedentary, inflating at very active. Documented in README.
+
+### Slowing development down
+
+- **OTA is rolled back to embedded.** Every JS change now costs a ~20 minute
+  build and a manual install. The update path is fixed but not re-enabled;
+  turning it back on needs one careful test on a spare device.
+
+### Never verified on a device
+
+- **Health Connect** — built, shipped, never once run.
+
+### Blocked on credentials
+
+- **Sentry DSNs** (Node + React Native), plus `SENTRY_ORG`, `SENTRY_PROJECT`
+  and `SENTRY_AUTH_TOKEN` to re-enable source-map upload. Until then error
+  reporting is installed but silent, and traces would be minified.
+
+### Launch blockers
+
+- `usesCleartextTraffic: true` ships in release builds, permitting plain HTTP.
+- `versionCode` is unset outside the production profile; Play rejects repeats.
+- A domain that can be verified in Search Console, for the privacy policy.
+- Play Console account, store listing, Data Safety form.
+- Health Connect data declaration — or cut the feature from v1 and skip it.
+
+### Deferred
+
+- **Data export** — account deletion exists (Play requires it), export does
+  not. A GDPR obligation the day anyone in Europe signs up.
+- **Hinglish / i18n** — no infrastructure at all; ~221 hardcoded strings.
+  Hinglish support in the AI prompt is the cheap first step and probably
+  covers more real usage than a translated UI.
+- **Habitual meal composition** ("my morning tea has no sugar") — dropped by
+  explicit decision. Needs matching on meaning rather than a key, and getting
+  it wrong logs the wrong thing without the user noticing.
+
 ## Rejected
 
 **Home + navigation restyle (5 tabs -> 3 tabs + centre FAB).** Considered
