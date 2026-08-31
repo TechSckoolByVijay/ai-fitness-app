@@ -1153,6 +1153,39 @@ three devices stuck on a white screen. Now verified and timed out.
 
 ## Open — reviewed 31 Aug
 
+### Next version — resilience when the AI provider fails
+
+On 31 Aug the Azure `gpt-5.6-luna` deployment started failing and logging
+stopped working entirely for several hours:
+
+```
+APIConnectionTimeoutError: Request timed out
+InternalServerError: 503 no healthy upstream
+```
+
+`no healthy upstream` comes from Azure's own gateway — the deployment was
+down, not the app. Two gaps turned an upstream blip into an unusable app:
+
+**No retry.** A single 503 fails the whole request. These errors are
+transient by nature, and two or three attempts with a short backoff would
+have made most of them invisible. The existing
+`isUnsupportedTemperatureError` retry shows the shape to follow: retry the
+specific, recoverable case, not everything.
+
+**No failover.** Both providers are already fully configured — `AI_PROVIDER`
+picks one and the other sits idle. When the active provider returns 5xx or
+times out, falling back to the other would have kept the app working with no
+intervention. This is the more valuable of the two, and cheap now that the
+provider selection already exists.
+
+**The error message is also wrong.** "Try again" reads as though the user
+phrased something badly. When the provider is down it should say the service
+is temporarily unavailable, so waiting is understood as the fix rather than
+rewording.
+
+Mitigated for now by switching `AI_PROVIDER=openai` + `AI_MODEL=gpt-4o` by
+hand — which is exactly the manual step the failover would automate.
+
 ### Known defects
 
 - **Calorie estimates vary run to run.** The same plate returned 200 and 607
