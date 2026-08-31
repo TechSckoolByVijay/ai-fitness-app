@@ -1,5 +1,6 @@
 import type { NutritionEstimate } from '@fitness-app/shared';
-import { findFoodEntry, type FoodTableEntry, type Per100g } from './food-table';
+import { findFoodEntry, type Per100g } from './food-table';
+import { resolveGrams } from './resolve-grams';
 import { applyPreparationAdjustment, FALLBACK_PER_100G } from './nutrition-adjustments';
 import type { NutritionLookupInput, NutritionService } from './nutrition-service.interface';
 
@@ -147,27 +148,6 @@ function pickBestMatch(foods: FdcFood[], query: string): FdcFood | undefined {
   return foods[0];
 }
 
-function resolveGrams(
-  entry: FoodTableEntry | undefined,
-  quantity: number,
-  unit: string,
-  estimatedWeightGrams?: number,
-): number {
-  if (estimatedWeightGrams) return estimatedWeightGrams;
-  const normalizedUnit = unit.toLowerCase();
-  if (['g', 'gram', 'grams'].includes(normalizedUnit)) return quantity;
-  if (normalizedUnit === 'kg') return quantity * 1000;
-
-  // The curated table knows what a unit actually weighs — a chapati is 40g,
-  // a banana 118g. USDA offers no such mapping, so a bare "1 serving" there
-  // can only fall back to a flat 100g assumption.
-  if (entry) {
-    const perUnit = entry.gramsPerUnit[normalizedUnit] ?? entry.gramsPerUnit[entry.defaultUnit] ?? 100;
-    return perUnit * quantity;
-  }
-
-  return quantity * 100;
-}
 
 /**
  * Real nutrition provider backed by USDA FoodData Central's public search

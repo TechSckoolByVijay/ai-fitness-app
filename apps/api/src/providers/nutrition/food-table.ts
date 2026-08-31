@@ -101,10 +101,21 @@ export const FOOD_TABLE: FoodTableEntry[] = [
     per100g: { calories: 20, proteinG: 0.5, carbsG: 2, fatG: 0.8, fiberG: 0, sugarG: 1.5 },
   },
   {
+    // The powder itself, distinct from a made-up shake. USDA's per-100g figure
+    // for whey is right, but "1 scoop" was resolving to 100g rather than the
+    // ~32g a scoop actually holds, tripling every logged serving.
+    canonicalName: 'protein powder',
+    aliases: ['protein powder', 'whey protein', 'whey', 'protein supplement'],
+    defaultUnit: 'scoop',
+    gramsPerUnit: { scoop: 32, tablespoon: 15, g: 1 },
+    per100g: { calories: 390, proteinG: 78, carbsG: 8, fatG: 6, fiberG: 1, sodiumMg: 300 },
+  },
+  {
     canonicalName: 'protein shake',
     aliases: ['protein shake', 'protein shakes'],
     defaultUnit: 'glass',
-    gramsPerUnit: { glass: 300, cup: 250, ml: 1 },
+    // A shake is mostly the liquid it is mixed into; a scoop is just the powder.
+    gramsPerUnit: { glass: 300, cup: 250, ml: 1, scoop: 32 },
     per100g: { calories: 65, proteinG: 6, carbsG: 5, fatG: 2, fiberG: 0.5 },
   },
   {

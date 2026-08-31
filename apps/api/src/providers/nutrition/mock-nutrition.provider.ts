@@ -1,5 +1,6 @@
 import type { NutritionEstimate } from '@fitness-app/shared';
-import { findFoodEntry, type FoodTableEntry } from './food-table';
+import { findFoodEntry } from './food-table';
+import { resolveGrams } from './resolve-grams';
 import { applyPreparationAdjustment, FALLBACK_PER_100G } from './nutrition-adjustments';
 import type { NutritionLookupInput, NutritionService } from './nutrition-service.interface';
 
@@ -7,25 +8,6 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-function resolveGrams(
-  entry: FoodTableEntry | undefined,
-  quantity: number,
-  unit: string,
-  estimatedWeightGrams?: number,
-): number {
-  if (estimatedWeightGrams) return estimatedWeightGrams;
-
-  const normalizedUnit = unit.toLowerCase();
-  if (['g', 'gram', 'grams'].includes(normalizedUnit)) return quantity;
-  if (normalizedUnit === 'kg') return quantity * 1000;
-
-  if (entry) {
-    const perUnit = entry.gramsPerUnit[normalizedUnit] ?? entry.gramsPerUnit[entry.defaultUnit] ?? 100;
-    return perUnit * quantity;
-  }
-
-  return quantity * 100;
-}
 
 export class MockNutritionProvider implements NutritionService {
   async lookup(input: NutritionLookupInput): Promise<NutritionEstimate> {

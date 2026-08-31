@@ -7,6 +7,7 @@ import {
   type MealType,
 } from '@fitness-app/shared';
 import { findFoodEntry } from '../../providers/nutrition/food-table';
+import { isAmbiguousUnit, sizeOptionsFor } from '../../providers/nutrition/resolve-grams';
 import type { NutritionService } from '../../providers/nutrition/nutrition-service.interface';
 import {
   classifyItemConfidence,
@@ -48,11 +49,43 @@ function adjustConfidenceForGenericFood(name: string, aiConfidence: number): num
   return Math.min(aiConfidence, GENERIC_FOOD_CONFIDENCE_CEILING);
 }
 
+/**
+ * A container word with no stated weight is not something to guess at. "One
+ * bowl of dal" is 150g or 400g depending on the house, a spread wide enough
+ * to make the day's total meaningless, so the tier is forced down and the
+ * existing clarification path asks.
+ *
+ * Skipped entirely when the model supplied an explicit weight — it saw a
+ * photo, or the user said "200g", and that beats any question.
+ */
+function adjustConfidenceForAmbiguousUnit(
+  item: { unit: string; estimatedWeightGrams?: number },
+  aiConfidence: number,
+): number {
+  if (item.estimatedWeightGrams) return aiConfidence;
+  if (!isAmbiguousUnit(item.unit)) return aiConfidence;
+  return Math.min(aiConfidence, GENERIC_FOOD_LOW_CONFIDENCE_FLOOR);
+}
+
 function buildClarifyingQuestion(
   items: InterpretedFoodItem[],
 ): { clarifyingQuestion: string; quickOptions: string[] } | undefined {
   const lowItem = items.find((item) => item.tier === 'low');
   if (!lowItem) return undefined;
+
+  // Size question first: knowing how big the bowl was is more useful than
+  // knowing which curry it held, and it is the more answerable question.
+  if (!lowItem.estimatedWeightGrams && isAmbiguousUnit(lowItem.unit)) {
+    const options = sizeOptionsFor(lowItem.unit);
+    if (options.length > 0) {
+      return {
+        clarifyingQuestion: `How big was the ${lowItem.unit.toLowerCase()} of ${lowItem.name}?`,
+        // Phrased so the answer re-interprets naturally, and with the gram
+        // figure shown so the choice is informed rather than a guess.
+        quickOptions: [...options.map((o) => `${o.label} (about ${o.grams} g)`), 'Add manually'],
+      };
+    }
+  }
 
   const entry = findFoodEntry(lowItem.name);
   if (entry?.isGeneric && entry.genericOptions) {
@@ -96,7 +129,10 @@ export async function interpretFoodEvent(
         preparationMethod: item.preparationMethod,
       });
 
-      const confidence = adjustConfidenceForGenericFood(item.name, item.confidence);
+      const confidence = adjustConfidenceForAmbiguousUnit(
+        item,
+        adjustConfidenceForGenericFood(item.name, item.confidence),
+      );
 
       return {
         name: item.name,
