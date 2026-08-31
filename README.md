@@ -33,6 +33,153 @@ criteria this build satisfies, [ARCHITECTURE.md](./ARCHITECTURE.md) for the
 technical design and key decisions, and [PLAN.md](./PLAN.md) for a live
 done/pending status tracker.
 
+## How your daily targets are calculated
+
+Every number on the Home card comes from
+[`apps/api/src/modules/onboarding/calorie-targets.ts`](./apps/api/src/modules/onboarding/calorie-targets.ts).
+No LLM is involved: the AI identifies *what* you ate or did, and this
+deterministic formula decides what it is worth.
+
+### Step 1 — BMR: what your body burns doing nothing
+
+**Basal Metabolic Rate** is the energy your body spends staying alive —
+breathing, circulation, brain, organ function — lying still all day. It is the
+large majority of what most people burn.
+
+Calculated with the **Mifflin-St Jeor equation**, the current standard:
+
+```
+BMR = (10 x weightKg) + (6.25 x heightCm) - (5 x ageYears) + sexOffset
+
+sexOffset = +5   for male
+          = -161 for female
+          = +5   for "other" / "prefer not to say"
+```
+
+Age comes from date of birth, which is why onboarding asks for it: the same
+intake that suits a 30-year-old does not suit an 80-year-old.
+
+> The male offset is used as the conservative default for "other" and "prefer
+> not to say" — it yields the *higher* BMR, and a slightly generous target is
+> safer than an under-estimate.
+
+### Step 2 — TDEE: what you burn living an ordinary day
+
+**Total Daily Energy Expenditure** is BMR scaled for how active your life
+already is, before any deliberate exercise:
+
+| Activity level | Multiplier | Means |
+|---|---|---|
+| Sedentary | 1.2 | Desk job, little to no exercise |
+| Light | 1.375 | Exercise 1-3 days/week |
+| Moderate | 1.55 | Exercise 3-5 days/week |
+| Active | 1.725 | Exercise 6-7 days/week |
+| Very active | 1.9 | Physical job, or training twice a day |
+
+```
+TDEE = BMR x activityMultiplier
+```
+
+### Step 3 — Goal adjustment
+
+```
+lose_weight    -500 kcal   (a deficit)
+gain_muscle    +300 kcal   (a surplus)
+everything else   0        (maintain)
+
+calorieTarget = max(1200, round(TDEE + goalAdjustment))
+```
+
+The **1,200 kcal floor** applies no matter what the arithmetic produces. Very
+low intakes are not something an unsupervised app should ever recommend.
+
+### A worked example
+
+A 90 kg, 174 cm, 33-year-old male, sedentary, aiming to lose weight:
+
+```
+BMR   = (10 x 90) + (6.25 x 174) - (5 x 33) + 5
+      = 900 + 1087.5 - 165 + 5
+      = 1827.5 kcal        <- burned just staying alive
+
+TDEE  = 1827.5 x 1.2
+      = 2193 kcal          <- burned living an ordinary day
+
+Target = 2193 - 500
+       = 1693 kcal         <- what to eat to lose weight
+```
+
+**The 500 kcal deficit is roughly 0.45 kg (1 lb) of fat per week**, since a
+pound of fat stores about 3,500 kcal and 500 x 7 = 3,500.
+
+### Protein and water
+
+```
+proteinTarget = weightKg x 1.8   (gain_muscle)
+              = weightKg x 1.2   (everything else)
+
+waterTargetMl = weightKg x 35
+```
+
+Protein is a **floor**, not a ceiling — the point is to protect muscle while
+losing fat, so exceeding it is fine and falling short is what matters. This is
+the opposite of how the calorie target behaves when losing weight, and it is
+why the Home card words them differently.
+
+### How eaten and burned interact with the target
+
+```
+Can still eat = calorieTarget - eatenToday + burnedByActivityToday
+```
+
+**Your resting burn is already inside the target — it is not missing.** The
+target *is* your full daily burn minus the deficit, so BMR and ordinary daily
+movement are already accounted for before you eat anything. Adding them again
+would double-count and cancel the deficit entirely.
+
+`burnedByActivity` is only **deliberate exercise you logged**, which is energy
+spent on top of an ordinary day, so it genuinely widens the allowance:
+
+- Burn 500 and eat it back -> the same deficit, more food.
+- Burn 500 and do not eat it back -> a deeper deficit that day.
+- Do not exercise at all -> stay under the target and the deficit still holds.
+
+### Known limitation: double counting at high activity levels
+
+The activity multiplier already assumes a level of exercise, and logged
+workouts are then added on top.
+
+At **sedentary (1.2)** the multiplier assumes almost none, so logging a workout
+is roughly correct. At **very active (1.9)** the multiplier already assumes
+daily hard training, and logging those same sessions counts them twice,
+inflating that user's allowance.
+
+This is inherent to combining a TDEE multiplier with logged exercise and is
+shared by most trackers. The cleaner model is a lower multiplier plus logged
+exercise only. Not yet changed — recorded here so the trade-off is explicit.
+
+### Per-user overrides
+
+Standard tables are an average of everyone, which makes them wrong for each
+particular person. Anything set under **Profile -> Your preferences** takes
+precedence:
+
+- **Unit weights** — "my scoop is 35 g" beats both the standard 32 g and any
+  weight the vision model guesses from a photo.
+- **Activity intensity** — a multiplier on calories burned, per activity or
+  across the board, for people whose sessions are harder or easier than the
+  MET tables assume.
+
+### When targets are recalculated
+
+Whenever weight, body info, or the primary goal changes — not only at
+onboarding — so the targets never go stale. Logging a new weight recalculates
+them the same way onboarding did.
+
+The exception is a **custom budget** set under Profile -> Calorie budget: that
+is a deliberate choice, and recalculation leaves it alone rather than silently
+overwriting it.
+
 ## Tech stack
 
 - **Mobile**: React Native + Expo (SDK 57) + Expo Router + TypeScript + NativeWind (Tailwind) + TanStack Query + Zustand
