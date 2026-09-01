@@ -360,6 +360,43 @@ describe('UsdaNutritionProvider food matching', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  it('prices curd as dahi, not as the tofu USDA returns for "curd"', async () => {
+    // The real FDC response for "curd": every candidate contains the word,
+    // none says "raw", so the shortest description won — tofu at 151.
+    mock([
+      ['Soybean, curd cheese', 151],
+      ['Cheese, cottage, creamed, large or small curd', 98],
+    ]);
+    const provider = new UsdaNutritionProvider('test-key');
+
+    const result = await provider.lookup({ name: 'curd', quantity: 200, unit: 'ml' });
+
+    // 61 kcal/100g x 200g. The USDA path gave 302.
+    expect(result.calories).toBe(122);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('prices dahi, which USDA does not know at all, from the table', async () => {
+    mock([]);
+    const provider = new UsdaNutritionProvider('test-key');
+
+    const result = await provider.lookup({ name: 'dahi', quantity: 200, unit: 'ml' });
+
+    expect(result.calories).toBe(122);
+    expect(result.proteinG).toBe(7);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('leaves greek yogurt to USDA rather than pricing it as plain curd', async () => {
+    mock([['Yogurt, Greek, plain, lowfat', 73]]);
+    const provider = new UsdaNutritionProvider('test-key');
+
+    const result = await provider.lookup({ name: 'greek yogurt', quantity: 200, unit: 'g' });
+
+    expect(result.calories).toBe(146);
+    expect(result.source).toBe('usda');
+  });
+
   it('gives a curated food a real per-unit weight rather than assuming 100g', async () => {
     mock([['Bananas, raw', 89]]);
     const provider = new UsdaNutritionProvider('test-key');

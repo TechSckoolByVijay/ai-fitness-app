@@ -43,6 +43,21 @@ export const FOOD_TABLE: FoodTableEntry[] = [
     per100g: { calories: 297, proteinG: 11, carbsG: 58, fatG: 4, fiberG: 10, sodiumMg: 400 },
   },
   {
+    // Indian "curd" is dahi — plain set yoghurt. USDA has no "dahi" at all,
+    // and its "curd" means cheese curds: a search for it returns "Soybean,
+    // curd cheese" (tofu, 151 kcal/100g) as the shortest full-word match,
+    // which priced 200ml of dahi at 302 kcal instead of ~120. Bare
+    // "yogurt"/"yoghurt" are deliberately NOT aliases — USDA resolves
+    // "greek yogurt" correctly on its own, and it is a different food
+    // (~10g protein per 100g, not 3.5).
+    canonicalName: 'curd',
+    aliases: ['curd', 'dahi', 'plain curd', 'plain dahi', 'plain yogurt', 'plain yoghurt', 'set curd'],
+    defaultUnit: 'bowl',
+    gramsPerUnit: { bowl: 150, cup: 245, glass: 250, tablespoon: 15, g: 1, ml: 1 },
+    // USDA "Yogurt, plain, whole milk" — dahi is normally set from full-cream milk.
+    per100g: { calories: 61, proteinG: 3.5, carbsG: 4.7, fatG: 3.3, fiberG: 0, sugarG: 4.7, sodiumMg: 46 },
+  },
+  {
     canonicalName: 'dal',
     aliases: ['dal', 'daal', 'lentils', 'lentil curry'],
     defaultUnit: 'bowl',

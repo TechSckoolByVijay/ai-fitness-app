@@ -7,7 +7,8 @@
 //     --template-file infra/main.bicep \
 //     --parameters postgresAdminPassword=<generated> jwtSecret=<generated> \
 //                  jwtRefreshSecret=<generated> aiApiKey=<key> nutritionApiKey=<key> \
-//                  containerImageTag=latest
+//                  azureOpenAiEndpoint=https://<resource>.openai.azure.com/openai/v1 \
+//                  azureOpenAiDeployment=<deployment> containerImageTag=latest
 //
 // Run with `az deployment group what-if` first to preview with zero risk.
 //
@@ -42,8 +43,15 @@ param jwtSecret string
 @secure()
 param jwtRefreshSecret string
 
+@description('Azure OpenAI API key (AZURE_OPENAI_API_KEY).')
 @secure()
 param aiApiKey string
+
+@description('Azure OpenAI base URL, ending at /openai/v1 — no operation path, no ?api-version.')
+param azureOpenAiEndpoint string
+
+@description('The Azure OpenAI *deployment* name, an arbitrary alias that need not match a public model name.')
+param azureOpenAiDeployment string
 
 @secure()
 param nutritionApiKey string
@@ -179,8 +187,15 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'DATABASE_URL', secretRef: 'database-url' }
             { name: 'JWT_SECRET', secretRef: 'jwt-secret' }
             { name: 'JWT_REFRESH_SECRET', secretRef: 'jwt-refresh-secret' }
-            { name: 'AI_API_KEY', secretRef: 'ai-api-key' }
-            { name: 'AI_MODEL', value: 'gpt-4o-mini' }
+            // Azure OpenAI, reached through the newer OpenAI-compatible
+            // /openai/v1 surface. AZURE_OPENAI_API_VERSION is deliberately
+            // NOT set: supplying it switches the SDK to the classic
+            // /openai/deployments/...?api-version= shape, which this
+            // resource stopped answering (requests hung until timeout).
+            { name: 'AI_PROVIDER', value: 'azure' }
+            { name: 'AZURE_OPENAI_API_KEY', secretRef: 'ai-api-key' }
+            { name: 'AZURE_OPENAI_ENDPOINT', value: azureOpenAiEndpoint }
+            { name: 'AZURE_OPENAI_DEPLOYMENT', value: azureOpenAiDeployment }
             { name: 'NUTRITION_API_KEY', secretRef: 'nutrition-api-key' }
           ]
         }
