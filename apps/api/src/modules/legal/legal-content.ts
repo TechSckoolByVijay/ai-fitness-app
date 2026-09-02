@@ -54,9 +54,11 @@ you track your own health and fitness journey — we don't sell your data, and w
 </ul>
 
 <h2>How your information is used</h2>
-<p>Your logged meals, activities, and messages to the Coach are sent to <strong>OpenAI</strong>
-to be interpreted into structured data (e.g. turning "I ate two chapatis" into a calorie/protein
-estimate) or to generate a Coach reply. Food names are also sent to the
+<p>Your logged meals, activities, and messages to the Coach are sent to
+<strong>Azure OpenAI</strong> — Microsoft's hosted version of the OpenAI models, running in
+a Microsoft data centre — to be interpreted into structured data (e.g. turning "I ate two
+chapatis" into a calorie/protein estimate) or to generate a Coach reply. Microsoft does not use
+this data to train models, and it is not shared with OpenAI. Food names are also sent to the
 <strong>USDA FoodData Central</strong> public database to look up nutrition values. Your account
 data and logs are stored on <strong>Microsoft Azure</strong>, which hosts our database and
 servers. None of these providers are permitted to use your data for their own purposes beyond
@@ -69,7 +71,9 @@ providing the service to us.</p>
   <li>You can edit your profile, goals, diet, allergies, and health conditions at any time from
   the Profile tab — nothing you enter during onboarding is locked in.</li>
   <li>You can permanently delete your account and all associated data at any time from
-  Profile → Danger Zone. This is immediate and cannot be undone.</li>
+  Profile → Danger Zone. This is immediate and cannot be undone — see
+  <a href="/legal/delete-account">Delete your account</a> for the full list of what is removed
+  and what to do if you can no longer sign in.</li>
   <li>To request a copy of your data, or ask us anything about this policy, email
   <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</li>
 </ul>
@@ -148,6 +152,51 @@ decisions made based on its estimates or suggestions.</p>
 you accept the updated terms.</p>
 
 <h2>Contact</h2>
+<p><a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
+`,
+  );
+}
+
+/**
+ * Play Console's Data Safety form has a required "account deletion URL" field
+ * for any app that supports account creation, and it must be reachable from
+ * outside the app — a reviewer with no account has to be able to read it.
+ * In-app deletion (Profile → Danger Zone) is the actual mechanism; this page
+ * documents it and gives the email fallback for someone who has lost access
+ * to their account and so cannot reach the in-app path at all.
+ */
+export function deleteAccountHtml(): string {
+  return page(
+    'Delete your account',
+    `
+<h1>Delete your account and data</h1>
+<p class="updated">Last updated: ${LAST_UPDATED}</p>
+
+<p>You can permanently delete your ${APP_NAME} account, and everything stored with it, at any
+time. There is no waiting period and no retention window — deletion is immediate and cannot be
+undone.</p>
+
+<h2>From inside the app</h2>
+<ol>
+  <li>Open ${APP_NAME} and go to the <strong>Profile</strong> tab.</li>
+  <li>Scroll to the <strong>Danger zone</strong> card.</li>
+  <li>Tap <strong>Delete account</strong> and confirm with your password.</li>
+</ol>
+<p>You are signed out straight away and the account no longer exists.</p>
+
+<h2>If you cannot sign in</h2>
+<p>Email <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> from the address on the account
+and ask for it to be deleted. We will confirm once it is done.</p>
+
+<h2>What gets deleted</h2>
+<p><strong>Everything, permanently.</strong> Your account and profile (name, email, hashed
+password, date of birth, sex, height, weight, activity level, goals), your diet, allergy and
+health-condition entries, every meal, exercise, water, sleep and weight log, your saved
+favourites and preferences, and your full Coach conversation history.</p>
+<p>Nothing is kept after deletion. Routine server backups and logs age out on their own
+schedule and are never used to restore a deleted account.</p>
+
+<h2>Questions</h2>
 <p><a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
 `,
   );

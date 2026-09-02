@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { privacyPolicyHtml, termsOfServiceHtml } from './legal-content';
+import { deleteAccountHtml, privacyPolicyHtml, termsOfServiceHtml } from './legal-content';
 
 /**
  * Publicly reachable (no auth) static pages — Play Console's Data Safety /
@@ -15,5 +15,9 @@ export async function legalRoutes(app: FastifyInstance) {
 
   app.get('/legal/terms', async (_request, reply) => {
     reply.type('text/html').send(termsOfServiceHtml());
+  });
+
+  app.get('/legal/delete-account', async (_request, reply) => {
+    reply.type('text/html').send(deleteAccountHtml());
   });
 }
