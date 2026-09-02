@@ -23,3 +23,6 @@ coverage/
 !.vscode/extensions.json
 
 *.tsbuildinfo
+
+# Play Store submission credentials (service account JSON) — never commit
+secrets/
