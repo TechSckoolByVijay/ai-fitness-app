@@ -27,3 +27,6 @@ export * from './schemas/frequent-meal.schema';
 export * from './schemas/insights.schema';
 export * from './utils/calorie-alignment';
 export * from './utils/units';
+export * from './schemas/water-event.schema';
+export * from './utils/meal-time';
+export * from './schemas/export.schema';

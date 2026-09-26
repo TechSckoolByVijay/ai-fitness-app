@@ -1,5 +1,11 @@
 import type { NutritionEstimate } from '@fitness-app/shared';
-import { calorieSliderBounds, scaleNutritionToCalories } from './nutritionOverride';
+import {
+  calorieSliderBounds,
+  proteinSliderBounds,
+  scaleNutritionForQuantity,
+  scaleNutritionToCalories,
+  setNutritionProtein,
+} from './nutritionOverride';
 
 describe('calorieSliderBounds', () => {
   it('gives a narrow range around the estimate (0.6x-1.5x), not a wide-open one', () => {
@@ -65,5 +71,62 @@ describe('scaleNutritionToCalories', () => {
     const result = scaleNutritionToCalories(zero, 80);
     expect(result.calories).toBe(80);
     expect(Number.isFinite(result.proteinG)).toBe(true);
+  });
+});
+
+describe('protein corrections', () => {
+  const dal: NutritionEstimate = {
+    calories: 200,
+    proteinG: 10,
+    carbsG: 30,
+    fatG: 5,
+    fiberG: 4,
+    isEstimate: true,
+    source: 'usda',
+  };
+
+  it('sets protein without touching calories, and remembers the original estimate', () => {
+    const next = setNutritionProtein(dal, 22);
+    expect(next.proteinG).toBe(22);
+    expect(next.calories).toBe(200);
+    expect(next.proteinSetByUser).toBe(true);
+    expect(next.estimatedProteinG).toBe(10);
+    expect(next.estimatedCalories).toBe(200);
+    expect(next.source).toBe('user_edited');
+  });
+
+  it('keeps hand-set protein when calories are corrected afterwards', () => {
+    const next = scaleNutritionToCalories(setNutritionProtein(dal, 22), 300);
+    expect(next.proteinG).toBe(22);
+    expect(next.carbsG).toBe(45);
+  });
+
+  it('still rescales protein with calories when protein was never set', () => {
+    expect(scaleNutritionToCalories(dal, 300).proteinG).toBe(15);
+  });
+
+  it('keeps the first estimate across several edits', () => {
+    const once = scaleNutritionToCalories(dal, 300);
+    const twice = scaleNutritionToCalories(once, 250);
+    expect(twice.estimatedCalories).toBe(200);
+  });
+
+  it('scales hand-set protein and the estimate when quantity changes', () => {
+    const next = scaleNutritionForQuantity(setNutritionProtein(dal, 22), 2);
+    expect(next.proteinG).toBe(44);
+    expect(next.estimatedProteinG).toBe(20);
+    expect(next.proteinSetByUser).toBe(true);
+  });
+});
+
+describe('proteinSliderBounds', () => {
+  it('spans half to double the estimate', () => {
+    expect(proteinSliderBounds(20)).toEqual({ min: 10, max: 40 });
+  });
+
+  it('leaves room to move for low-protein foods', () => {
+    const { min, max } = proteinSliderBounds(1);
+    expect(min).toBe(1);
+    expect(max).toBeGreaterThanOrEqual(10);
   });
 });

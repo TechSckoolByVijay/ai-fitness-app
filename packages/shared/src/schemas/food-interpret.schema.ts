@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ConfidenceTierSchema, MealTypeSchema } from './enums.schema';
+import { ConfidenceTierSchema, MealTypeSchema, TimePrecisionSchema } from './enums.schema';
 import { NutritionEstimateSchema } from './nutrition.schema';
 
 export const InterpretedFoodItemSchema = z.object({
@@ -20,6 +20,7 @@ export type InterpretedFoodItem = z.infer<typeof InterpretedFoodItemSchema>;
 export const InterpretedMealSchema = z.object({
   mealType: MealTypeSchema,
   loggedAt: z.string().min(1),
+  timePrecision: TimePrecisionSchema.default('approximate'),
   sourceText: z.string().optional(),
   items: z.array(InterpretedFoodItemSchema).min(1),
   /** worst-of across items */
@@ -51,6 +52,7 @@ export const FoodInterpretRequestSchema = z
     /** A photo of a meal or a nutrition label, as a base64-encoded data URL (e.g. "data:image/jpeg;base64,..."). */
     imageBase64: z.string().optional(),
     mockTranscriptId: z.string().optional(),
+    /** The device's local time WITH its UTC offset ("…T09:15:00+05:30"), so "breakfast" and "today" resolve in the user's day, not UTC's. */
     nowISO: z.string().min(1),
   })
   .refine((d) => Boolean(d.text || d.audioBase64 || d.imageBase64 || d.mockTranscriptId), {

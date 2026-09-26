@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { InterpretedActivitySchema } from './exercise-interpret.schema';
 import { FoodInterpretRequestSchema, InterpretedMealSchema } from './food-interpret.schema';
+import { InterpretedWaterSchema } from './water-event.schema';
 
 /** Same request shape as food-only interpretation — the fields were always generic (text/audio/nowISO), never food-specific. */
 export const EventInterpretRequestSchema = FoodInterpretRequestSchema;
@@ -9,6 +10,7 @@ export type EventInterpretRequest = z.infer<typeof EventInterpretRequestSchema>;
 export const InterpretedHealthEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('food'), meal: InterpretedMealSchema }),
   z.object({ type: z.literal('exercise'), activity: InterpretedActivitySchema }),
+  z.object({ type: z.literal('water'), water: InterpretedWaterSchema }),
 ]);
 export type InterpretedHealthEvent = z.infer<typeof InterpretedHealthEventSchema>;
 

@@ -1,4 +1,4 @@
-import { sumNutrition, type FrequentMealDto } from '@fitness-app/shared';
+import { mealTypeLabel, sumNutrition, type FrequentMealDto } from '@fitness-app/shared';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useCreateFavoriteFood } from '../hooks/useFavorites';
@@ -46,7 +46,7 @@ export function SuggestedMealsRow({ frequentMeals }: SuggestedMealsRowProps) {
                 {meal.name}
               </Text>
               <Text variant="caption" className="capitalize">
-                {meal.mealType} · {Math.round(totals.calories)} kcal · logged {meal.useCount}×
+                {mealTypeLabel(meal.mealType)} · {Math.round(totals.calories)} kcal · logged {meal.useCount}×
               </Text>
               {isSaving ? (
                 <View className="gap-1.5">

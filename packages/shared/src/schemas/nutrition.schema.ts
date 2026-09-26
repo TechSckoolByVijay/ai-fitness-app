@@ -11,6 +11,18 @@ export const NutritionEstimateSchema = z.object({
   sodiumMg: z.number().nonnegative().optional(),
   isEstimate: z.boolean().default(true),
   source: NutritionSourceSchema,
+  /**
+   * The looked-up values before the user corrected anything, captured on
+   * the first edit and absent until then. Kept so export can show
+   * "estimated vs what you said" and so estimate accuracy is measurable.
+   */
+  estimatedCalories: z.number().nonnegative().optional(),
+  estimatedProteinG: z.number().nonnegative().optional(),
+  /**
+   * The user set protein directly. From then on a calorie correction leaves
+   * protein alone instead of rescaling it with the other macros.
+   */
+  proteinSetByUser: z.boolean().optional(),
 });
 export type NutritionEstimate = z.infer<typeof NutritionEstimateSchema>;
 

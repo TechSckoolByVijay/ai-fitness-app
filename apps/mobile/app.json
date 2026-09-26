@@ -65,7 +65,8 @@
         }
       ],
       "@react-native-google-signin/google-signin",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

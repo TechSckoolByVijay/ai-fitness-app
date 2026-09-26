@@ -1224,14 +1224,212 @@ hand — which is exactly the manual step the failover would automate.
 
 ### Deferred
 
-- **Data export** — account deletion exists (Play requires it), export does
-  not. A GDPR obligation the day anyone in Europe signs up.
+- **Data export** — now planned; see *Next — protein, export, voice*.
 - **Hinglish / i18n** — no infrastructure at all; ~221 hardcoded strings.
   Hinglish support in the AI prompt is the cheap first step and probably
   covers more real usage than a translated UI.
 - **Habitual meal composition** ("my morning tea has no sugar") — dropped by
   explicit decision. Needs matching on meaning rather than a key, and getting
   it wrong logs the wrong thing without the user noticing.
+
+## Protein, export, voice — BUILT 26 Sep, not yet on a device
+
+### What already exists (so we don't rebuild it)
+
+Protein is **already** fetched and stored. Every nutrition lookup (USDA, the
+food table, the AI fallback) returns protein in the same call as calories,
+and it is persisted per item (`NutritionRecord.proteinG`) and per day
+(`DailySummary.proteinConsumed`). `Profile.proteinTarget` exists (1.2 g/kg,
+1.8 g/kg for muscle gain), and Home and Progress already chart it. The gaps
+are all in how protein is shown and edited:
+
+- The review card shows only kcal per item. Protein is never shown before
+  confirming.
+- Protein can't be corrected. The calorie slider rescales protein in
+  proportion to calories (`scaleNutritionToCalories`), which is wrong for the
+  common case: "the dal was right, but I added extra paneer."
+
+### 1. Voice: stop cutting the user off (mobile only)
+
+`useVoiceRecognition` starts with `continuous: false`, so Android's
+recogniser ends the session after ~1-2 s of silence. Users pause to remember
+what they ate.
+
+- `continuous: true`, plus `androidIntentOptions`
+  `EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 10000` (a hint; some
+  recognisers ignore it).
+- **Keep listening until the user taps Done.** On an `end` event the user
+  didn't ask for (Android < 13, or a recogniser that ignores the hint),
+  restart silently and append the new segment to what was already heard.
+  Hard cap of about 3 minutes.
+- While listening: a pulsing mic, the live transcript growing on screen, and
+  one large **Done** button. Stopping is the user's decision, never a timer's.
+
+### 2. Replace the bare "Understanding..." screen
+
+Today the processing state is an emoji and one word on an empty screen.
+Replace it with:
+
+- What the user said, quoted at the top, so they can see what's being worked on.
+- A short step list that advances on a timer: *Reading what you said →
+  Finding the foods → Looking up calories & protein → Adding it up*. Each
+  step shows a check, a spinner or a dim dot. These steps really do happen
+  server-side; only the timing is simulated, so there is no fake percentage.
+- Skeleton versions of the result card underneath, so the layout doesn't
+  jump when results arrive.
+- After ~8 s: "Taking longer than usual…". This ties in with the
+  provider-resilience work above.
+
+### 3. Protein as a first-class, editable number (mobile + small API)
+
+- Review card: each item shows `180 kcal · 12 g protein`, and the total reads
+  `Estimated 640 kcal · 38 g protein`.
+- A **protein slider** under the calorie slider, 1 g steps. Bounds are 0.5×
+  to 2× the estimate, and at least 0-10 g wide so low-protein foods can
+  still move.
+- The two sliders are independent. Once the user sets protein by hand, later
+  calorie changes stop rescaling it (a per-item `proteinEdited` flag in
+  client state). Changing the quantity still scales both, because that
+  genuinely changes both.
+- The same controls on `meal/[id].tsx`, the edit screen for saved meals.
+- The API's update path must accept a protein-only override. Check it; it
+  probably already takes a full nutrition object.
+- Show the day's protein status on Home in the same sentence style
+  ("You need 42 g more protein"). This already exists; verify it updates
+  from edited values.
+
+### 4. Schema changes (one migration, all additive)
+
+```prisma
+enum TimePrecision {
+  exact        // "just now", or the user picked a time
+  approximate  // AI-inferred from "for lunch" / "this morning"
+  day          // "today I had 4 teas and 6 chapatis": no time at all
+}
+
+enum MealType { breakfast lunch dinner snack  all_day }  // + all_day
+
+model FoodEntry {
+  ...
+  timePrecision TimePrecision @default(approximate)
+}
+
+model NutritionRecord {
+  ...
+  /// The estimate before any user correction. Null when never edited.
+  /// Lets export show "estimated vs you said", and lets us measure how
+  /// far off the estimates run.
+  estimatedCalories Decimal? @db.Decimal(7, 2)
+  estimatedProteinG Decimal? @db.Decimal(7, 2)
+}
+
+model DailySummary {
+  ...
+  /// Targets as they were ON THAT DAY. Targets move as weight changes, so
+  /// reading today's target for a day three months ago would misreport
+  /// that day's deficit or surplus.
+  calorieTarget    Int?
+  proteinTarget    Int?
+}
+```
+
+- Existing rows are backfilled with `timePrecision = approximate`. Older
+  daily summaries keep null targets, and export falls back to the current
+  target with `target_source = current` so the number isn't presented as
+  historical fact.
+- **Cumulative days.** "Today: 4 cups of tea, 6 chapatis, 3 L water, 1 L
+  milk" becomes one `all_day` entry with `timePrecision = day`, stored at
+  local noon so it always lands on the right date in any time zone. The AI
+  prompt learns this shape ("today I had…" with no meal words becomes
+  `all_day`). Water named in such a sentence goes to `WaterEntry`, which
+  closes the gap noted in *Whole-day logging* above.
+- The UI groups `all_day` entries as "Through the day". Insights and meal-type
+  breakdowns must treat `all_day` as its own bucket rather than as a snack;
+  grep every `MealType` switch.
+
+### 5. Export API
+
+`GET /api/v1/export/food.csv` and `GET /api/v1/export/days.csv`, with
+`?days=7|30|90|365` or `?from=YYYY-MM-DD&to=YYYY-MM-DD` (at most 366 days).
+Both require auth, are rate-limited (about 10 per hour), set
+`Content-Disposition: attachment`, and write a UTF-8 BOM so Excel reads
+Hindi food names correctly. All dates and times are rendered in
+`Profile.timeZone`, never in UTC.
+
+**food.csv**, one row per food item:
+`date, time, time_precision, meal, food, quantity, unit, grams, calories,
+protein_g, carbs_g, fat_g, fiber_g, edited_by_user, estimated_calories,
+estimated_protein_g, what_you_said`
+(`time` is blank when precision is `day`).
+
+**days.csv**, one row per day in range (days with nothing logged are
+included with `logged = no`, because gaps are data):
+`date, logged, meals_logged, calories_in, calorie_target, exercise_kcal,
+balance_kcal, status (deficit/on_target/surplus, ±5% band), protein_g,
+protein_target, protein_met, carbs_g, fat_g, fiber_g, water_ml, weight_kg,
+sleep_min, steps, target_source`
+
+Both files are built from the same service the dashboard reads, so exported
+numbers can't disagree with what the app showed. Integration tests cover
+range limits, time-zone day boundaries, `all_day` rows, edited-item columns,
+empty days and another user's data (never included).
+
+This also settles the "Data export" item under *Deferred*, which covered the
+GDPR obligation.
+
+### 6. Export screen (mobile, needs a native build)
+
+Profile → **Export my data**: a range picker (7 / 30 / 90 days / 1 year /
+custom), two buttons (*Food log* and *Daily summary*) and one line of copy:
+"Your data is yours. Open it in Excel or Sheets, or hand it to any AI you
+like." The file is written to cache with `expo-file-system` and handed to the
+share sheet with `expo-sharing` (Drive, email, WhatsApp, the Claude/ChatGPT/
+Gemini apps). Both are new native modules, so this needs a build. OTA is
+off anyway, so ship it in the same build as 1-3.
+
+### Order
+
+1 → 2 → 3 (mobile-only, the daily pain), then 4 → 5 (API, independently
+testable and deployable), then 6, with a single native build at the end
+carrying everything.
+
+### Status (26 Sep)
+
+All six steps are built. API: 337 tests pass, including new unit and
+integration tests for export, whole-day entries, water and protein edits.
+Mobile: 141 tests pass, and both apps type-check. Migration
+`20260926090000_protein_time_precision_export` is additive and matches the
+schema exactly (checked with `prisma migrate diff`).
+
+Differences from the plan above:
+- **No `exerciseCalories` column.** Export sums `ExerciseEntry` directly.
+- **Export groups by the user's own calendar day.** It computes each day from
+  raw entries, not from `DailySummary`; see the defect below. The profile's
+  time zone is used, then the device's (`?tz=`), then UTC. The profile only
+  has a zone once push notifications are set up.
+- **The phone now sends `nowISO` with its UTC offset.** The AI used to see a
+  UTC clock, so "breakfast ~8am" meant 8am UTC (1:30pm IST). This was
+  checked live against Azure: meals now come back at 08:00+05:30 and 13:00+05:30.
+- **Water entries get time precision too.** The live check returned
+  "today's water" as local midnight, which is the previous UTC day. Day-only
+  water is now pinned inside the day, the same way food is.
+- **Formula injection.** CSV cells whose user text starts with `= + - @`
+  are prefixed with `'`.
+
+Not verified yet — needs a native build (new modules: `expo-file-system`,
+`expo-sharing`; config plugin added to app.json):
+- Voice staying open through pauses on a real Android phone, including the
+  auto-restart on Android 12 and below.
+- The share sheet receiving the CSV.
+
+### New known defect: days are UTC days everywhere else
+
+`toDateOnly` buckets `DailySummary`, the Home dashboard and the food list
+by UTC date. For an Indian user, anything logged from midnight to 5:30am
+counts toward the previous day, and "today" on Home rolls over at 5:30am.
+Export avoids this, so for those hours its numbers can differ from Home.
+Fixing it means keying summaries by the profile's local date. That is a
+separate change, which also needs a backfill.
 
 ## Rejected
 

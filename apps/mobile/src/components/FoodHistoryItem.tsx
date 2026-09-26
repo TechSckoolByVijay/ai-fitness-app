@@ -1,4 +1,4 @@
-import type { FoodEntryDto } from '@fitness-app/shared';
+import { mealTypeLabel, type FoodEntryDto } from '@fitness-app/shared';
 import { Pressable, View } from 'react-native';
 import { Text } from './ui/Text';
 import { formatTime } from '../utils/date';
@@ -13,7 +13,8 @@ export function FoodHistoryItem({ entry, onPress }: { entry: FoodEntryDto; onPre
     >
       <View className="flex-1 gap-0.5 pr-3">
         <Text variant="caption">
-          {formatTime(new Date(entry.loggedAt))} · <Text variant="caption" className="capitalize">{entry.mealType}</Text>
+          {entry.timePrecision === 'day' ? '' : `${formatTime(new Date(entry.loggedAt))} · `}
+          <Text variant="caption">{mealTypeLabel(entry.mealType)}</Text>
         </Text>
         <Text variant="body" className="font-medium capitalize">
           {summary}

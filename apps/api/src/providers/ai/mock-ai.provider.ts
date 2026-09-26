@@ -4,6 +4,8 @@ import type { AIProvider, CoachChatMessage, CoachContextInput } from './ai-provi
 import { mockCoachReply } from './coach-chat-utils';
 import { tryParseExercise } from './exercise-parsing-utils';
 import {
+  extractWater,
+  isWholeDayTotals,
   inferMealType,
   parseDescriptors,
   parseQuantity,
@@ -179,14 +181,34 @@ export class MockAIProvider implements AIProvider {
       };
     }
 
-    const { hour } = resolveTimestamp(resolvedText, nowISO);
-    const mealType = inferMealType(resolvedText, hour);
-    const phrases = splitIntoItemPhrases(resolvedText).flatMap(splitOnWithIfFood);
+    const water = extractWater(resolvedText);
+    const foodText = water ? water.remainingText : resolvedText;
+    const wholeDay = isWholeDayTotals(resolvedText);
+    const waterEvents = water
+      ? [
+          {
+            type: 'water' as const,
+            timestamp,
+            timePrecision: wholeDay ? ('day' as const) : undefined,
+            amountMl: water.amountMl,
+          },
+        ]
+      : [];
+    if (water && !foodText.replace(/\b(i|had|drank|today|and)\b/gi, '').trim()) {
+      return { events: waterEvents };
+    }
 
-    const items = phrases.length > 0 ? phrases.map(buildItem) : [buildFallbackItem(resolvedText)];
+    const { hour } = resolveTimestamp(resolvedText, nowISO);
+    const mealType = wholeDay ? 'all_day' : inferMealType(resolvedText, hour);
+    const phrases = splitIntoItemPhrases(foodText).flatMap(splitOnWithIfFood);
+
+    const items = phrases.length > 0 ? phrases.map(buildItem) : [buildFallbackItem(foodText)];
 
     return {
-      events: [{ type: 'food', timestamp, mealType, items }],
+      events: [
+        { type: 'food', timestamp, timePrecision: wholeDay ? 'day' : undefined, mealType, items },
+        ...waterEvents,
+      ],
     };
   }
 

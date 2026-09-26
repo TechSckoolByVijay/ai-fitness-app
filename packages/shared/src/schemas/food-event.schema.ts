@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MealTypeSchema } from './enums.schema';
+import { MealTypeSchema, TimePrecisionSchema } from './enums.schema';
 
 /**
  * The contract every AIProvider.extractFoodEvents() implementation must return
@@ -25,6 +25,7 @@ export type FoodItemExtraction = z.infer<typeof FoodItemExtractionSchema>;
 export const FoodExtractionEventSchema = z.object({
   type: z.literal('food'),
   timestamp: z.string().min(1),
+  timePrecision: TimePrecisionSchema.optional(),
   mealType: MealTypeSchema.optional(),
   items: z.array(FoodItemExtractionSchema).min(1),
 });

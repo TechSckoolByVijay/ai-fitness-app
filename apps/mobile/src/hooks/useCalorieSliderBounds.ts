@@ -13,7 +13,11 @@ import { nextCalorieBaseline, type CalorieBaseline } from '../utils/calorieSlide
  * across a brand-new interpretation, so baselines are cleared whenever it
  * changes.
  */
-export function useCalorieSliderBounds(resetKey: string) {
+export function useCalorieSliderBounds(
+  resetKey: string,
+  /** The same freezing applies to any per-item slider; protein passes its own bounds. */
+  boundsFor: (baseline: number) => { min: number; max: number } = calorieSliderBounds,
+) {
   const baselines = useRef<Map<number, CalorieBaseline>>(new Map());
   const lastResetKey = useRef(resetKey);
 
@@ -25,6 +29,6 @@ export function useCalorieSliderBounds(resetKey: string) {
   return function getBounds(index: number, quantity: number, liveCalories: number) {
     const next = nextCalorieBaseline(baselines.current.get(index), quantity, liveCalories);
     baselines.current.set(index, next);
-    return calorieSliderBounds(next.calories);
+    return boundsFor(next.calories);
   };
 }

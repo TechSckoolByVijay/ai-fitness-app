@@ -1,4 +1,5 @@
 import {
+  dayPrecisionLoggedAt,
   InterpretedMealSchema,
   sumNutrition,
   type FoodExtractionEvent,
@@ -168,9 +169,15 @@ export async function interpretFoodEvent(
   const autoLog = shouldAutoLog(mealTier, DEFAULT_AUTO_LOG_SETTING);
   const clarification = mealTier === 'low' ? buildClarifyingQuestion(items) : undefined;
 
+  // Eaten "across the day" has no clock time by definition — and a day-only
+  // entry is pinned to the day's placeholder time, never a guessed one.
+  const mealType = (event.mealType ?? 'snack') as MealType;
+  const timePrecision = mealType === 'all_day' ? 'day' : (event.timePrecision ?? 'approximate');
+
   const meal: InterpretedMeal = {
-    mealType: (event.mealType ?? 'snack') as MealType,
-    loggedAt: event.timestamp,
+    mealType,
+    loggedAt: timePrecision === 'day' ? dayPrecisionLoggedAt(event.timestamp) : event.timestamp,
+    timePrecision,
     sourceText,
     items,
     tier: mealTier,

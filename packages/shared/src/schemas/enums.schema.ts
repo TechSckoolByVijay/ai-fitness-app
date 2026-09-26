@@ -1,7 +1,15 @@
 import { z } from 'zod';
 
-export const MealTypeSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack']);
+/** all_day: eaten across the day with no particular meal ("4 teas today"). */
+export const MealTypeSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack', 'all_day']);
 export type MealType = z.infer<typeof MealTypeSchema>;
+
+/**
+ * How much the user told us about WHEN they ate. "day" means only the date
+ * is known — logging never demands a time.
+ */
+export const TimePrecisionSchema = z.enum(['exact', 'approximate', 'day']);
+export type TimePrecision = z.infer<typeof TimePrecisionSchema>;
 
 export const ConfidenceTierSchema = z.enum(['high', 'medium', 'low']);
 export type ConfidenceTier = z.infer<typeof ConfidenceTierSchema>;

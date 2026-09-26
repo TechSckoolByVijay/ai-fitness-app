@@ -1,4 +1,9 @@
-import { HealthExtractionResultSchema, type EventInterpretRequest, type InterpretedHealthEvent } from '@fitness-app/shared';
+import {
+  dayPrecisionLoggedAt,
+  HealthExtractionResultSchema,
+  type EventInterpretRequest,
+  type InterpretedHealthEvent,
+} from '@fitness-app/shared';
 import { NO_OVERRIDES, type UserOverrides } from '../users/user-preferences.service';
 import { InterpretationFailedError } from '../../lib/errors';
 import type { AIProvider } from '../../providers/ai/ai-provider.interface';
@@ -71,6 +76,20 @@ export async function interpretHealthEvents(
 
   return Promise.all(
     parsed.data.events.map(async (event): Promise<InterpretedHealthEvent> => {
+      if (event.type === 'water') {
+        // Nothing to look up — water is just an amount, reviewed and saved
+        // on the client like any other event.
+        return {
+          type: 'water',
+          water: {
+            amountMl: event.amountMl,
+            // A day's total carries only a date (often as local midnight,
+            // which is the previous day in UTC) — pin it inside the day.
+            loggedAt: event.timePrecision === 'day' ? dayPrecisionLoggedAt(event.timestamp) : event.timestamp,
+            sourceText,
+          },
+        };
+      }
       if (event.type === 'exercise') {
         // A per-activity multiplier wins over the user's blanket "default".
         const multiplier =

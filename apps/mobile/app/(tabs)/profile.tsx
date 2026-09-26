@@ -212,6 +212,18 @@ export default function ProfileScreen() {
             </View>
           </Card>
 
+          <Card>
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 pr-3">
+                <Text variant="subtitle">Export my data</Text>
+                <Text variant="caption" className="text-gray-500 dark:text-gray-400">
+                  Everything you've logged, as a spreadsheet — for Excel, Sheets, or any AI.
+                </Text>
+              </View>
+              <Button label="Export" variant="ghost" onPress={() => router.push('/export')} />
+            </View>
+          </Card>
+
           <RemindersCard />
 
           <HealthConnectCard />
@@ -231,7 +243,6 @@ export default function ProfileScreen() {
               Settings
             </Text>
             <Row label="Health integrations" value="Coming soon" />
-            <Row label="Privacy & data export" value="Coming soon" />
           </Card>
 
           <Button label="Log out" variant="secondary" onPress={() => logout.mutate()} loading={logout.isPending} />

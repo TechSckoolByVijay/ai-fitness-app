@@ -108,6 +108,10 @@ function RootLayout() {
             options={{ presentation: 'modal', headerShown: true, title: 'Calorie budget' }}
           />
           <Stack.Screen
+            name="export"
+            options={{ presentation: 'modal', headerShown: true, title: 'Export my data' }}
+          />
+          <Stack.Screen
             name="units"
             options={{ presentation: 'modal', headerShown: true, title: 'Units' }}
           />

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ExerciseExtractionEventObjectSchema } from './exercise-event.schema';
 import { FoodExtractionEventSchema } from './food-event.schema';
+import { WaterExtractionEventSchema } from './water-event.schema';
 
 /**
  * General AI-extraction contract: a single utterance can describe a food
@@ -12,6 +13,7 @@ import { FoodExtractionEventSchema } from './food-event.schema';
 export const HealthEventSchema = z.discriminatedUnion('type', [
   FoodExtractionEventSchema,
   ExerciseExtractionEventObjectSchema,
+  WaterExtractionEventSchema,
 ]);
 export type HealthEvent = z.infer<typeof HealthEventSchema>;
 

@@ -149,7 +149,7 @@ export function extractTimeOverride(text: string): { hour: number; minute: numbe
   return { hour, minute };
 }
 
-export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'all_day';
 
 export function inferMealType(text: string, hour: number): MealType {
   const lower = text.toLowerCase();
@@ -182,4 +182,51 @@ export function resolveTimestamp(text: string, nowISO: string): { iso: string; h
   const resolved = new Date(now);
   resolved.setHours(hour, override.minute, 0, 0);
   return { iso: resolved.toISOString(), hour };
+}
+
+const WATER_PATTERN =
+  /(\d+(?:\.\d+)?|a|one|two|three|four|five|six|seven|eight|nine|ten)\s*(litres?|liters?|l|glass(?:es)?|bottles?|ml)\s+(?:of\s+)?water\b/i;
+const WATER_WORD_NUMBERS: Record<string, number> = {
+  ...WORD_NUMBERS,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+
+/**
+ * Pulls "3 litres of water" out of an utterance so it can be logged as water
+ * rather than parsed as a food item. Returns the text with that phrase
+ * removed, or null when no plain water is mentioned.
+ */
+export function extractWater(text: string): { amountMl: number; remainingText: string } | null {
+  const match = WATER_PATTERN.exec(text);
+  if (!match) return null;
+  const count = WATER_WORD_NUMBERS[match[1].toLowerCase()] ?? Number(match[1]);
+  const unit = match[2].toLowerCase();
+  const perUnit = unit.startsWith('glass') ? 250 : unit === 'ml' ? 1 : 1000;
+  const amountMl = Math.round(count * perUnit);
+  if (!(amountMl > 0)) return null;
+  // Stitch the sentence back together where the phrase was cut out:
+  // "6 chapatis, [3 litres of water] and milk" -> "6 chapatis and milk".
+  const remainingText = (text.slice(0, match.index) + text.slice(match.index + match[0].length))
+    .replace(/\s+/g, ' ')
+    .replace(/\s*,\s*(,\s*)+/g, ', ')
+    .replace(/\s*,\s*and\b/gi, ' and')
+    .replace(/\band\s+and\b/gi, 'and')
+    .replace(/^[\s,]*(and\b)?|[\s,]*(\band)?[\s,.]*$/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { amountMl, remainingText };
+}
+
+/**
+ * "Today I had 4 teas and 6 chapatis" — day totals with no meal named. Such
+ * an utterance is logged as one all-day entry rather than forced into a meal.
+ */
+export function isWholeDayTotals(text: string): boolean {
+  const lower = text.toLowerCase();
+  const namesDay = /\b(today|yesterday|whole day|all day|throughout the day)\b/.test(lower);
+  const namesMeal = /\b(breakfast|lunch|dinner|snack|morning|afternoon|evening|night)\b/.test(lower);
+  return namesDay && !namesMeal;
 }

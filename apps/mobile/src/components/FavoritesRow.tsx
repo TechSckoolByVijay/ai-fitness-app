@@ -1,4 +1,4 @@
-import { sumNutrition, type FavoriteFoodDto } from '@fitness-app/shared';
+import { mealTypeLabel, sumNutrition, type FavoriteFoodDto } from '@fitness-app/shared';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useDeleteFavoriteFood, useLogFavoriteFood } from '../hooks/useFavorites';
 import { Text } from './ui/Text';
@@ -46,7 +46,7 @@ export function FavoritesRow({ favorites }: FavoritesRowProps) {
                 </Pressable>
               </View>
               <Text variant="caption" className="capitalize">
-                {favorite.mealType} · {Math.round(totals.calories)} kcal
+                {mealTypeLabel(favorite.mealType)} · {Math.round(totals.calories)} kcal
               </Text>
               <Text variant="caption" className="text-primary-600 dark:text-primary-400">
                 Tap to log

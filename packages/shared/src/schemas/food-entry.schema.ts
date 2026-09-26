@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ConfidenceTierSchema, FoodEntryStatusSchema, MealTypeSchema } from './enums.schema';
+import { ConfidenceTierSchema, FoodEntryStatusSchema, MealTypeSchema, TimePrecisionSchema } from './enums.schema';
 import { NutritionEstimateSchema } from './nutrition.schema';
 
 export const FoodItemInputSchema = z.object({
@@ -18,6 +18,7 @@ export type FoodItemInput = z.infer<typeof FoodItemInputSchema>;
 export const CreateFoodEntryRequestSchema = z.object({
   mealType: MealTypeSchema,
   loggedAt: z.string().min(1),
+  timePrecision: TimePrecisionSchema.optional(),
   sourceText: z.string().optional(),
   confidenceTier: ConfidenceTierSchema.optional(),
   items: z.array(FoodItemInputSchema).min(1),
@@ -27,6 +28,7 @@ export type CreateFoodEntryRequest = z.infer<typeof CreateFoodEntryRequestSchema
 export const UpdateFoodEntryRequestSchema = z.object({
   mealType: MealTypeSchema.optional(),
   loggedAt: z.string().min(1).optional(),
+  timePrecision: TimePrecisionSchema.optional(),
   items: z.array(FoodItemInputSchema).min(1).optional(),
 });
 export type UpdateFoodEntryRequest = z.infer<typeof UpdateFoodEntryRequestSchema>;
@@ -40,6 +42,7 @@ export const FoodEntryDtoSchema = z.object({
   id: z.string().uuid(),
   mealType: MealTypeSchema,
   loggedAt: z.string(),
+  timePrecision: TimePrecisionSchema,
   sourceText: z.string().nullable(),
   confidenceTier: ConfidenceTierSchema,
   status: FoodEntryStatusSchema,

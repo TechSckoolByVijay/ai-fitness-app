@@ -1,4 +1,10 @@
-import { ActivityTypeSchema, IntensitySchema, MealTypeSchema, type HealthExtractionResult } from '@fitness-app/shared';
+import {
+  ActivityTypeSchema,
+  IntensitySchema,
+  MealTypeSchema,
+  TimePrecisionSchema,
+  type HealthExtractionResult,
+} from '@fitness-app/shared';
 import { zodTextFormat } from 'openai/helpers/zod';
 import OpenAI from 'openai';
 import { z } from 'zod';
@@ -45,8 +51,16 @@ const OpenAIFoodItemSchema = z.object({
 const OpenAIFoodEventSchema = z.object({
   type: z.literal('food'),
   timestamp: z.string().min(1),
+  timePrecision: TimePrecisionSchema,
   mealType: MealTypeSchema.nullable(),
   items: z.array(OpenAIFoodItemSchema).min(1),
+});
+
+const OpenAIWaterEventSchema = z.object({
+  type: z.literal('water'),
+  timestamp: z.string().min(1),
+  timePrecision: TimePrecisionSchema,
+  amountMl: z.number().int().positive(),
 });
 
 const OpenAIExerciseEventSchema = z.object({
@@ -61,7 +75,11 @@ const OpenAIExerciseEventSchema = z.object({
   descriptors: z.array(z.string()).nullable(),
 });
 
-const OpenAIEventSchema = z.discriminatedUnion('type', [OpenAIFoodEventSchema, OpenAIExerciseEventSchema]);
+const OpenAIEventSchema = z.discriminatedUnion('type', [
+  OpenAIFoodEventSchema,
+  OpenAIExerciseEventSchema,
+  OpenAIWaterEventSchema,
+]);
 
 const OpenAIExtractionSchema = z.object({
   events: z.array(OpenAIEventSchema).min(1),
@@ -75,6 +93,14 @@ function nullableString(value: string | null): string | undefined {
 function toHealthExtractionResult(raw: z.infer<typeof OpenAIExtractionSchema>): HealthExtractionResult {
   return {
     events: raw.events.map((event) => {
+      if (event.type === 'water') {
+        return {
+          type: 'water' as const,
+          timestamp: event.timestamp,
+          timePrecision: event.timePrecision,
+          amountMl: event.amountMl,
+        };
+      }
       if (event.type === 'exercise') {
         return {
           type: 'exercise' as const,
@@ -92,6 +118,7 @@ function toHealthExtractionResult(raw: z.infer<typeof OpenAIExtractionSchema>): 
       return {
         type: 'food' as const,
         timestamp: event.timestamp,
+        timePrecision: event.timePrecision,
         mealType: event.mealType ?? undefined,
         items: event.items.map((item) => ({
           name: item.name,
@@ -113,7 +140,18 @@ const SYSTEM_PROMPT = `You extract structured health-logging data from a user's 
 
 Produce ONE event per distinct meal/sitting or activity the user describes — do not force everything into a single event, and do not split one meal's items across multiple events either. Recognize a NEW event boundary when the user names a different meal-time (breakfast/lunch/dinner/snack), a clearly different time of day, or a distinct activity — items mentioned together for the same meal/sitting still belong in ONE event together. A single utterance describing one meal produces exactly one food event, same as before; only produce multiple events when the user actually described multiple separate things.
 
-Set every event's timestamp to an ISO 8601 datetime — if the user mentioned a time, resolve it against today's date (given below); if they only named a meal (breakfast/lunch/dinner/snack) without a time, use a reasonable clock time for that meal on today's date (e.g. ~8am breakfast, ~1pm lunch, ~8pm dinner) rather than the current time — this matters because these events may be logged well after they happened. Only fall back to the current time given below when nothing else indicates when it happened.
+Set every event's timestamp to an ISO 8601 datetime — if the user mentioned a time, resolve it against today's date (given below); if they only named a meal (breakfast/lunch/dinner/snack) without a time, use a reasonable clock time for that meal on today's date (e.g. ~8am breakfast, ~1pm lunch, ~8pm dinner) rather than the current time — this matters because these events may be logged well after they happened. Only fall back to the current time given below when nothing else indicates when it happened. The current time is given in the user's own time zone (with its UTC offset) — write every timestamp in that same offset, so "8am breakfast" means 8am where the user is.
+
+Set every food event's timePrecision to say how much the user actually told you about WHEN:
+- "exact": they said "just now"/"right now", or gave a clock time ("at 1pm").
+- "approximate": they named a meal or part of the day ("for lunch", "this morning") and you inferred the clock time.
+- "day": they only said WHICH day ("today", "yesterday") or gave running totals for the day with no meal or time at all.
+
+Whole-day totals are a normal, welcome way to log — never push for times the user didn't give. When the user lists what they had over a day WITHOUT tying items to meals (e.g. "Today I had 4 cups of tea, 6 chapatis, and a litre of milk"), produce ONE food event with mealType "all_day", timePrecision "day", and all those items in it; its timestamp only needs the right DATE. Use "all_day" only in that case — if they named meals, use the meals.
+
+=== WATER events ===
+
+When the user says how much plain WATER they drank ("3 litres of water", "8 glasses of water"), produce a separate event of type "water" with amountMl (1 litre = 1000 ml, 1 glass = 250 ml, 1 bottle = 1000 ml unless stated). Plain water only — tea, coffee, milk, juice, lassi etc. are FOOD items, never water events. Its timestamp and timePrecision follow the same rules as food.
 
 === FOOD events ===
 
@@ -131,7 +169,7 @@ For each distinct food mentioned, produce an item with:
   - 0.5-0.79 (medium): EITHER the food name itself is generic/ambiguous (e.g. "curry" or "gravy" with no type given) but a quantity was given, OR the food is specific but the quantity was genuinely vague ("some rice", "a bit of dal").
   - 0.0-0.49 (low): the food name is generic/ambiguous AND no real quantity was given (e.g. "some curry"), or the text is too unclear to tell what was eaten at all. Do NOT lower confidence just because the dish is unusual, non-Indian, or not in any example above — only lower it for genuine ambiguity in what the user said.
 
-Group all items belonging to the SAME meal/sitting into a single event of type "food" — never split one meal's own items into separate events. Set each event's mealType to whichever of breakfast/lunch/dinner/snack is implied by that meal's own text or time; if nothing suggests otherwise for a single-meal utterance, infer breakfast for morning, lunch for midday, snack for afternoon, dinner for evening/night.
+Group all items belonging to the SAME meal/sitting into a single event of type "food" — never split one meal's own items into separate events. Set each event's mealType to whichever of breakfast/lunch/dinner/snack is implied (or all_day, only as described above) by that meal's own text or time; if nothing suggests otherwise for a single-meal utterance, infer breakfast for morning, lunch for midday, snack for afternoon, dinner for evening/night.
 
 Worked example (single meal) — input: "At 12 o'clock I ate two medium chapatis, around 200 grams of less-oily medium-spicy curry, and a bowl of salad."
 Correct items (note each descriptor stays attached to only the item it modifies):
@@ -141,9 +179,14 @@ Correct items (note each descriptor stays attached to only the item it modifies)
 
 Worked example (whole day, multiple events) — input: "This morning I had a glass of milk and a banana, for lunch three chapatis and rice, and I went for a 20 minute walk in the evening."
 Produces THREE separate events, each with only its own items — never merge across meals:
-  1. food event, mealType "breakfast", timestamp ~8am: items ["milk" (1 glass), "banana" (1)]
-  2. food event, mealType "lunch", timestamp ~1pm: items ["chapati" (3), "rice" (1 bowl, since no explicit quantity was given)]
+  1. food event, mealType "breakfast", timePrecision "approximate", timestamp ~8am: items ["milk" (1 glass), "banana" (1)]
+  2. food event, mealType "lunch", timePrecision "approximate", timestamp ~1pm: items ["chapati" (3), "rice" (1 bowl, since no explicit quantity was given)]
   3. exercise event, timestamp ~evening (e.g. 6pm): activityType "walking", durationMinutes 20
+
+Worked example (day totals, no meals) — input: "Today I had four cups of tea, six chapatis, three litres of water and one litre of milk."
+Produces TWO events:
+  1. food event, mealType "all_day", timePrecision "day", timestamp today: items ["tea" (4 cup), "chapati" (6), "milk" (1000 ml)]
+  2. water event, timePrecision "day", timestamp today, amountMl 3000
 
 === EXERCISE events ===
 

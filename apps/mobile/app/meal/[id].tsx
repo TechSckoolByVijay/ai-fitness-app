@@ -1,9 +1,10 @@
-import { sumNutrition, type FoodItemInput } from '@fitness-app/shared';
+import { mealTypeLabel, sumNutrition, type FoodItemInput } from '@fitness-app/shared';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, View } from 'react-native';
 import { Button } from '../../src/components/ui/Button';
 import { CalorieSlider } from '../../src/components/ui/CalorieSlider';
+import { ProteinSlider } from '../../src/components/ui/ProteinSlider';
 import { Card } from '../../src/components/ui/Card';
 import { Text } from '../../src/components/ui/Text';
 import { TextField } from '../../src/components/ui/TextField';
@@ -13,11 +14,12 @@ import { useCreateFoodEntry, useDeleteFoodEntry, useFoodEntries, useUpdateFoodEn
 import { useRequireAuth } from '../../src/hooks/useRequireAuth';
 import { formatTime } from '../../src/utils/date';
 import { goBackOrHome } from '../../src/utils/navigation';
-import { scaleNutritionToCalories } from '../../src/utils/nutritionOverride';
-
-function round1(value: number): number {
-  return Math.round(value * 10) / 10;
-}
+import {
+  proteinSliderBounds,
+  scaleNutritionForQuantity,
+  scaleNutritionToCalories,
+  setNutritionProtein,
+} from '../../src/utils/nutritionOverride';
 
 function confirmAsync(title: string, message: string): Promise<boolean> {
   if (Platform.OS === 'web') {
@@ -46,6 +48,7 @@ export default function MealDetailScreen() {
   const editableItems = items ?? entry?.items ?? [];
   const isEditing = items !== null;
   const getBounds = useCalorieSliderBounds(id ?? 'meal');
+  const getProteinBounds = useCalorieSliderBounds(id ?? 'meal', proteinSliderBounds);
 
   if (!isAuthenticated) {
     return (
@@ -72,18 +75,7 @@ export default function MealDetailScreen() {
     const newQuantity = Math.max(minQty, item.quantity + step);
     const scale = newQuantity / item.quantity;
 
-    next[index] = {
-      ...item,
-      quantity: newQuantity,
-      nutrition: {
-        ...item.nutrition,
-        calories: round1(item.nutrition.calories * scale),
-        proteinG: round1(item.nutrition.proteinG * scale),
-        carbsG: round1(item.nutrition.carbsG * scale),
-        fatG: round1(item.nutrition.fatG * scale),
-        fiberG: round1((item.nutrition.fiberG ?? 0) * scale),
-      },
-    };
+    next[index] = { ...item, quantity: newQuantity, nutrition: scaleNutritionForQuantity(item.nutrition, scale) };
     setItems(next);
   };
 
@@ -91,6 +83,13 @@ export default function MealDetailScreen() {
     const base = items ?? entry.items;
     const next = [...base];
     next[index] = { ...next[index], nutrition: scaleNutritionToCalories(next[index].nutrition, calories) };
+    setItems(next);
+  };
+
+  const adjustProtein = (index: number, proteinG: number) => {
+    const base = items ?? entry.items;
+    const next = [...base];
+    next[index] = { ...next[index], nutrition: setNutritionProtein(next[index].nutrition, proteinG) };
     setItems(next);
   };
 
@@ -136,9 +135,11 @@ export default function MealDetailScreen() {
   return (
     <ScrollView className="flex-1 bg-surface-light dark:bg-surface-dark" contentContainerClassName="gap-4 p-5">
       <Text variant="title" className="capitalize">
-        {entry.mealType}
+        {mealTypeLabel(entry.mealType)}
       </Text>
-      <Text variant="caption">{formatTime(new Date(entry.loggedAt))}</Text>
+      <Text variant="caption">
+        {entry.timePrecision === 'day' ? 'Some time that day' : formatTime(new Date(entry.loggedAt))}
+      </Text>
       {entry.sourceText === '[Photo]' ? (
         <Text variant="caption" className="italic">
           📷 Logged from a photo
@@ -152,6 +153,7 @@ export default function MealDetailScreen() {
       <Card className="gap-3">
         {editableItems.map((item, index) => {
           const bounds = getBounds(index, item.quantity, item.nutrition.calories);
+          const proteinBounds = getProteinBounds(index, item.quantity, item.nutrition.proteinG);
           return (
             <View key={index} className="gap-2">
               <View className="flex-row items-center justify-between">
@@ -159,7 +161,9 @@ export default function MealDetailScreen() {
                   {item.quantity} {item.unit} {item.name}
                 </Text>
                 <View className="flex-row items-center gap-2">
-                  <Text variant="caption">{Math.round(item.nutrition.calories)} kcal</Text>
+                  <Text variant="caption">
+                    {Math.round(item.nutrition.calories)} kcal · {Math.round(item.nutrition.proteinG)} g protein
+                  </Text>
                   {isEditing ? (
                     <View className="flex-row gap-1">
                       <Pressable
@@ -179,12 +183,20 @@ export default function MealDetailScreen() {
                 </View>
               </View>
               {isEditing ? (
-                <CalorieSlider
-                  calories={item.nutrition.calories}
-                  minCalories={bounds.min}
-                  maxCalories={bounds.max}
-                  onChange={(calories) => adjustCalories(index, calories)}
-                />
+                <>
+                  <CalorieSlider
+                    calories={item.nutrition.calories}
+                    minCalories={bounds.min}
+                    maxCalories={bounds.max}
+                    onChange={(calories) => adjustCalories(index, calories)}
+                  />
+                  <ProteinSlider
+                    proteinG={item.nutrition.proteinG}
+                    minProteinG={proteinBounds.min}
+                    maxProteinG={proteinBounds.max}
+                    onChange={(proteinG) => adjustProtein(index, proteinG)}
+                  />
+                </>
               ) : null}
             </View>
           );

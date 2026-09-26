@@ -84,6 +84,20 @@ enum MealType {
   lunch
   dinner
   snack
+  /// "Today I had 4 teas and 6 chapatis" — eaten across the day, no meal.
+  all_day
+}
+
+/// How much the user actually told us about WHEN they ate. Logging must never
+/// demand a time, so "some time today" is a first-class answer rather than a
+/// guessed clock time dressed up as fact.
+enum TimePrecision {
+  /// "just now", or a time the user chose
+  exact
+  /// inferred from "for lunch" / "this morning"
+  approximate
+  /// only the day is known; loggedAt is local noon, a placeholder
+  day
 }
 
 enum ConfidenceTier {
@@ -206,15 +220,15 @@ model RefreshToken {
 }
 
 model Profile {
-  id                    String    @id @default(uuid()) @db.Uuid
-  userId                String    @unique @db.Uuid
+  id                    String         @id @default(uuid()) @db.Uuid
+  userId                String         @unique @db.Uuid
   dateOfBirth           DateTime?
   sex                   Sex?
-  heightCm              Decimal?  @db.Decimal(5, 2)
-  currentWeightKg       Decimal?  @db.Decimal(5, 2)
-  targetWeightKg        Decimal?  @db.Decimal(5, 2)
+  heightCm              Decimal?       @db.Decimal(5, 2)
+  currentWeightKg       Decimal?       @db.Decimal(5, 2)
+  targetWeightKg        Decimal?       @db.Decimal(5, 2)
   activityLevel         ActivityLevel?
-  unitSystem            UnitSystem @default(metric)
+  unitSystem            UnitSystem     @default(metric)
   /// IANA zone (e.g. "Asia/Kolkata"), captured from the device. Reminder
   /// times are local wall-clock, so the server cannot fire them without it.
   timeZone              String?
@@ -226,7 +240,7 @@ model Profile {
   /// When true the user has set their own calorie/macro budget and
   /// recalculateProfileTargets must not overwrite it. Logging a new weight
   /// would otherwise silently discard what they chose.
-  useCustomTargets      Boolean @default(false)
+  useCustomTargets      Boolean        @default(false)
   /// Macro split as whole percentages of the calorie target. Null until the
   /// user opens the Budget screen; the app falls back to a sensible default.
   carbTargetPct         Int?
@@ -234,8 +248,8 @@ model Profile {
   proteinTargetPct      Int?
   profileCompletionJson Json?
   onboardingCompletedAt DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -295,6 +309,7 @@ model FoodEntry {
   sourceText     String?
   confidenceTier ConfidenceTier  @default(high)
   status         FoodEntryStatus @default(confirmed)
+  timePrecision  TimePrecision   @default(approximate)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -324,18 +339,25 @@ model FoodItem {
 }
 
 model NutritionRecord {
-  id         String          @id @default(uuid()) @db.Uuid
-  foodItemId String          @unique @db.Uuid
-  calories   Decimal         @db.Decimal(7, 2)
-  proteinG   Decimal         @db.Decimal(7, 2)
-  carbsG     Decimal         @db.Decimal(7, 2)
-  fatG       Decimal         @db.Decimal(7, 2)
-  fiberG     Decimal?        @db.Decimal(7, 2)
-  sugarG     Decimal?        @db.Decimal(7, 2)
-  sodiumMg   Decimal?        @db.Decimal(7, 2)
-  source     NutritionSource
-  isEstimate Boolean         @default(true)
-  createdAt  DateTime        @default(now())
+  id                String          @id @default(uuid()) @db.Uuid
+  foodItemId        String          @unique @db.Uuid
+  calories          Decimal         @db.Decimal(7, 2)
+  proteinG          Decimal         @db.Decimal(7, 2)
+  carbsG            Decimal         @db.Decimal(7, 2)
+  fatG              Decimal         @db.Decimal(7, 2)
+  fiberG            Decimal?        @db.Decimal(7, 2)
+  sugarG            Decimal?        @db.Decimal(7, 2)
+  sodiumMg          Decimal?        @db.Decimal(7, 2)
+  source            NutritionSource
+  isEstimate        Boolean         @default(true)
+  /// The looked-up values before the user corrected anything; null when
+  /// never edited. Kept for export ("estimated vs what you said") and to
+  /// measure how far off the estimates run.
+  estimatedCalories Decimal?        @db.Decimal(7, 2)
+  estimatedProteinG Decimal?        @db.Decimal(7, 2)
+  /// The user set protein directly, so calorie corrections leave it alone.
+  proteinSetByUser  Boolean         @default(false)
+  createdAt         DateTime        @default(now())
 
   foodItem FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
 }
@@ -357,6 +379,11 @@ model DailySummary {
   exerciseDurationMin   Int?
   weightKg              Decimal? @db.Decimal(5, 2)
   screenBreakCompliance Decimal? @db.Decimal(4, 2)
+  /// Targets as they were on THIS day. They move as weight changes, so
+  /// judging a day from three months ago against today's target would
+  /// misreport its deficit or surplus. Null for days before this existed.
+  calorieTarget         Int?
+  proteinTarget         Int?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -408,18 +435,18 @@ model SleepEntry {
 }
 
 model ExerciseEntry {
-  id             String            @id @default(uuid()) @db.Uuid
-  userId         String            @db.Uuid
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @db.Uuid
   activityType   ActivityType
   durationMin    Int
   steps          Int?
-  distanceKm     Decimal?          @db.Decimal(6, 2)
+  distanceKm     Decimal?           @db.Decimal(6, 2)
   intensity      ActivityIntensity?
-  caloriesBurned Decimal           @db.Decimal(7, 2)
+  caloriesBurned Decimal            @db.Decimal(7, 2)
   sourceText     String?
-  confidence     Decimal           @default(1) @db.Decimal(3, 2)
+  confidence     Decimal            @default(1) @db.Decimal(3, 2)
   loggedAt       DateTime
-  createdAt      DateTime          @default(now())
+  createdAt      DateTime           @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

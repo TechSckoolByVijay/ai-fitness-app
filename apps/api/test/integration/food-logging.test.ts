@@ -22,6 +22,32 @@ describe('food logging round trip', () => {
     await app.close();
   });
 
+  it('interprets whole-day totals as one all-day entry plus water, with no clock time', async () => {
+    const token = await registerAndGetToken(app, 'interpret-day');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/events/interpret',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        text: 'Today I had 4 cups of tea, 6 chapatis and 3 litres of water',
+        nowISO: '2026-09-20T21:30:00+05:30',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const { events } = response.json();
+    const food = events.find((e: { type: string }) => e.type === 'food');
+    const water = events.find((e: { type: string }) => e.type === 'water');
+    expect(food.meal).toMatchObject({
+      mealType: 'all_day',
+      timePrecision: 'day',
+      loggedAt: '2026-09-20T12:00:00.000Z',
+    });
+    expect(food.meal.items.map((i: { name: string }) => i.name)).toEqual(['tea', 'chapati']);
+    expect(water.water).toMatchObject({ amountMl: 3000, loggedAt: '2026-09-20T12:00:00.000Z' });
+  });
+
   it('interprets a high-confidence utterance and returns estimated macros without persisting', async () => {
     const token = await registerAndGetToken(app, 'interpret');
 

@@ -1,11 +1,13 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import {
+  dayPrecisionLoggedAt,
   sumNutrition,
   type CreateFoodEntryRequest,
   type FoodEntriesResponse,
   type FoodEntryDto,
   type FoodItemInput,
   type NutritionEstimate,
+  type TimePrecision,
   type UpdateFoodEntryRequest,
 } from '@fitness-app/shared';
 import { NotFoundError } from '../../lib/errors';
@@ -28,7 +30,15 @@ function toNutritionCreateInput(nutrition: NutritionEstimate) {
     sodiumMg: nutrition.sodiumMg,
     source: nutrition.source,
     isEstimate: nutrition.isEstimate,
+    estimatedCalories: nutrition.estimatedCalories,
+    estimatedProteinG: nutrition.estimatedProteinG,
+    proteinSetByUser: nutrition.proteinSetByUser ?? false,
   };
+}
+
+/** A "some time that day" entry is pinned to the day's placeholder time, whatever clock time came with it. */
+function resolveLoggedAt(loggedAt: string, timePrecision: TimePrecision): Date {
+  return new Date(timePrecision === 'day' ? dayPrecisionLoggedAt(loggedAt) : loggedAt);
 }
 
 function toItemsCreateInput(items: FoodItemInput[]) {
@@ -67,6 +77,11 @@ function toFoodEntryDto(entry: FoodEntryWithItems): FoodEntryDto {
           sodiumMg: item.nutrition.sodiumMg ? Number(item.nutrition.sodiumMg) : undefined,
           isEstimate: item.nutrition.isEstimate,
           source: item.nutrition.source,
+          estimatedCalories:
+            item.nutrition.estimatedCalories !== null ? Number(item.nutrition.estimatedCalories) : undefined,
+          estimatedProteinG:
+            item.nutrition.estimatedProteinG !== null ? Number(item.nutrition.estimatedProteinG) : undefined,
+          proteinSetByUser: item.nutrition.proteinSetByUser || undefined,
         }
       : { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, fiberG: 0, isEstimate: true, source: 'mock' as const },
   }));
@@ -75,6 +90,7 @@ function toFoodEntryDto(entry: FoodEntryWithItems): FoodEntryDto {
     id: entry.id,
     mealType: entry.mealType,
     loggedAt: entry.loggedAt.toISOString(),
+    timePrecision: entry.timePrecision,
     sourceText: entry.sourceText,
     confidenceTier: entry.confidenceTier,
     status: entry.status,
@@ -92,12 +108,14 @@ export async function createFoodEntry(
 ): Promise<FoodEntryDto> {
   const itemTiers = input.items.map((item) => classifyItemConfidence(item.confidence));
   const confidenceTier = input.confidenceTier ?? classifyMealConfidence(itemTiers);
+  const timePrecision = input.timePrecision ?? 'approximate';
 
   const entry = await prisma.foodEntry.create({
     data: {
       userId,
       mealType: input.mealType,
-      loggedAt: new Date(input.loggedAt),
+      loggedAt: resolveLoggedAt(input.loggedAt, timePrecision),
+      timePrecision,
       sourceText: input.sourceText,
       confidenceTier,
       status: 'confirmed',
@@ -159,7 +177,10 @@ export async function updateFoodEntry(
   const updateData: Prisma.FoodEntryUpdateInput = { status: 'edited' };
 
   if (input.mealType) updateData.mealType = input.mealType;
-  if (input.loggedAt) updateData.loggedAt = new Date(input.loggedAt);
+  if (input.timePrecision) updateData.timePrecision = input.timePrecision;
+  if (input.loggedAt) {
+    updateData.loggedAt = resolveLoggedAt(input.loggedAt, input.timePrecision ?? existing.timePrecision);
+  }
 
   if (input.items) {
     await prisma.foodItem.deleteMany({ where: { foodEntryId: id } });

@@ -16,6 +16,7 @@ import { favoritesRoutes } from './modules/favorites/favorites.routes';
 import { foodRoutes } from './modules/food/food.routes';
 import { frequentMealsRoutes } from './modules/frequent-meals/frequent-meals.routes';
 import { insightsRoutes } from './modules/insights/insights.routes';
+import { exportRoutes } from './modules/export/export.routes';
 import { legalRoutes } from './modules/legal/legal.routes';
 import { healthRoutes } from './modules/health/health.routes';
 import { notificationPreferencesRoutes } from './modules/notifications/notification-preferences.routes';
@@ -113,6 +114,7 @@ export async function buildApp(env: Env) {
   await app.register(favoritesRoutes, { prefix: '/api/v1' });
   await app.register(frequentMealsRoutes, { prefix: '/api/v1' });
   await app.register(insightsRoutes, { prefix: '/api/v1' });
+  await app.register(exportRoutes, { prefix: '/api/v1' });
 
   return app;
 }

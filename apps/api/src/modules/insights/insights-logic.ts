@@ -9,6 +9,7 @@ const MEAL_LABEL: Record<MealType, string> = {
   lunch: 'lunch',
   dinner: 'dinner',
   snack: 'snacks',
+  all_day: 'through the day',
 };
 
 /**

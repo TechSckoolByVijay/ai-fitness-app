@@ -6,6 +6,7 @@ const IDLE: VoiceState = { status: 'idle' };
 const HIGH_CONFIDENCE_MEAL: InterpretedMeal = {
   mealType: 'snack',
   loggedAt: '2026-08-25T09:00:00.000Z',
+  timePrecision: 'approximate',
   sourceText: 'I ate a banana.',
   items: [
     {

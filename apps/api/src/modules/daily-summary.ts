@@ -94,6 +94,18 @@ export function sumSleepMinutes(entries: SleepEntryLike[]): number {
  * the day the user woke up, matching the convention most sleep trackers use,
  * since sleptAt usually falls on the previous calendar day.
  */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a day is still "live" — today, or yesterday/tomorrow in UTC terms,
+ * which covers every time zone's today. Only live days take a fresh target
+ * snapshot: editing a meal from last month must not stamp last month with
+ * this month's target.
+ */
+export function isLiveDay(date: Date, now: Date = new Date()): boolean {
+  return Math.abs(date.getTime() - toDateOnly(now).getTime()) <= DAY_MS;
+}
+
 export async function recomputeDailySummary(
   prisma: PrismaClient,
   userId: string,
@@ -102,7 +114,8 @@ export async function recomputeDailySummary(
   const start = date;
   const end = new Date(date.getTime() + 24 * 60 * 60 * 1000);
 
-  const [foodEntries, exerciseEntries, waterEntries, sleepEntries] = await Promise.all([
+  const [profile, foodEntries, exerciseEntries, waterEntries, sleepEntries] = await Promise.all([
+    prisma.profile.findUnique({ where: { userId }, select: { calorieTarget: true, proteinTarget: true } }),
     prisma.foodEntry.findMany({
       where: { userId, loggedAt: { gte: start, lt: end } },
       include: { items: { include: { nutrition: true } } },
@@ -123,9 +136,12 @@ export async function recomputeDailySummary(
   const waterConsumedMl = sumWaterMl(waterEntries);
   const sleepDurationMin = sumSleepMinutes(sleepEntries);
 
+  const targets = { calorieTarget: profile?.calorieTarget ?? null, proteinTarget: profile?.proteinTarget ?? null };
+
   await prisma.dailySummary.upsert({
     where: { userId_date: { userId, date } },
     update: {
+      ...(isLiveDay(date) ? targets : {}),
       caloriesConsumed: nutritionTotals.calories,
       proteinConsumed: nutritionTotals.proteinG,
       carbsConsumed: nutritionTotals.carbsG,
@@ -139,6 +155,9 @@ export async function recomputeDailySummary(
     create: {
       userId,
       date,
+      // A brand-new row for an old day (a meal backdated a month) gets no
+      // snapshot: nothing records what the target was back then.
+      ...(isLiveDay(date) ? targets : {}),
       caloriesConsumed: nutritionTotals.calories,
       proteinConsumed: nutritionTotals.proteinG,
       carbsConsumed: nutritionTotals.carbsG,

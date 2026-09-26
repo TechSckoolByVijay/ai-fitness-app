@@ -1,9 +1,18 @@
-import { sumNutrition, type InterpretedActivity, type InterpretedHealthEvent, type InterpretedMeal } from '@fitness-app/shared';
+import {
+  mealTypeLabel,
+  sumNutrition,
+  type InterpretedActivity,
+  type InterpretedHealthEvent,
+  type InterpretedMeal,
+  type InterpretedWater,
+} from '@fitness-app/shared';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { ApiError } from '../src/api/client';
 import { ActivityInterpretationCard } from '../src/components/ActivityInterpretationCard';
+import { AnalyzingProgress } from '../src/components/AnalyzingProgress';
 import { InterpretationCard } from '../src/components/InterpretationCard';
+import { WaterInterpretationCard } from '../src/components/WaterInterpretationCard';
 import { useUpsertUserPreference } from '../src/hooks/useUserPreferences';
 import { Button } from '../src/components/ui/Button';
 import { Chip } from '../src/components/ui/Chip';
@@ -12,12 +21,14 @@ import { TextField } from '../src/components/ui/TextField';
 import { useCreateFoodEntry } from '../src/hooks/useFoodEntries';
 import { useInterpretEvent } from '../src/hooks/useEvents';
 import { useCreateExerciseEntry } from '../src/hooks/useExerciseEntries';
+import { useCreateWaterEntry } from '../src/hooks/useWaterEntries';
 import { useRequireAuth } from '../src/hooks/useRequireAuth';
 import { useVoiceRecognition } from '../src/hooks/useVoiceRecognition';
 import { usePendingPhotoStore } from '../src/state/pendingPhoto';
 import { useVoiceMachine } from '../src/state/voiceMachine';
+import { localISOString } from '../src/utils/date';
 import { goBackOrHome } from '../src/utils/navigation';
-import { scaleNutritionToCalories } from '../src/utils/nutritionOverride';
+import { scaleNutritionForQuantity, scaleNutritionToCalories, setNutritionProtein } from '../src/utils/nutritionOverride';
 
 const EXAMPLE_PHRASES = [
   'I ate a banana.',
@@ -26,18 +37,18 @@ const EXAMPLE_PHRASES = [
   'I walked 1000 steps.',
 ];
 
-function round1(value: number): number {
-  return Math.round(value * 10) / 10;
-}
-
 function eventLabel(event: InterpretedHealthEvent): string {
-  if (event.type === 'food') return event.meal.mealType;
+  if (event.type === 'food') return mealTypeLabel(event.meal.mealType);
+  if (event.type === 'water') return 'Water';
   return event.activity.activityType.replace(/_/g, ' ');
 }
 
 function eventEmoji(event: InterpretedHealthEvent): string {
   if (event.type === 'exercise') return '🏃';
+  if (event.type === 'water') return '💧';
   switch (event.meal.mealType) {
+    case 'all_day':
+      return '🗓️';
     case 'breakfast':
       return '🍳';
     case 'lunch':
@@ -58,12 +69,14 @@ export default function LogMealScreen() {
   const interpretEvent = useInterpretEvent();
   const createEntry = useCreateFoodEntry();
   const createActivity = useCreateExerciseEntry();
-  const isSubmitting = createEntry.isPending || createActivity.isPending;
+  const createWater = useCreateWaterEntry();
+  const isSubmitting = createEntry.isPending || createActivity.isPending || createWater.isPending;
 
   const persistMeal = async (meal: InterpretedMeal) => {
     await createEntry.mutateAsync({
       mealType: meal.mealType,
       loggedAt: meal.loggedAt,
+      timePrecision: meal.timePrecision,
       sourceText: meal.sourceText,
       confidenceTier: meal.tier,
       items: meal.items.map((item) => ({
@@ -94,15 +107,20 @@ export default function LogMealScreen() {
     });
   };
 
+  const persistWater = async (water: InterpretedWater) => {
+    await createWater.mutateAsync({ amountMl: water.amountMl, loggedAt: water.loggedAt });
+  };
+
   const persistEvent = async (event: InterpretedHealthEvent) => {
     if (event.type === 'food') await persistMeal(event.meal);
+    else if (event.type === 'water') await persistWater(event.water);
     else await persistActivity(event.activity);
   };
 
   const runInterpretCore = async (input: { text: string } | { imageBase64: string }, sourceTextForFailure: string) => {
     dispatch({ type: 'SUBMIT' });
     try {
-      const result = await interpretEvent.mutateAsync({ ...input, nowISO: new Date().toISOString() });
+      const result = await interpretEvent.mutateAsync({ ...input, nowISO: localISOString() });
       const sourceText = 'imageBase64' in input ? '[Photo]' : sourceTextForFailure;
       dispatch({ type: 'INTERPRETED', events: result.events, sourceText });
 
@@ -141,11 +159,16 @@ export default function LogMealScreen() {
   // confirms explicitly, so a short pause mid-thought never sends a
   // half-finished sentence, and describing a whole day across a few
   // recording segments works naturally.
-  const voice = useVoiceRecognition((finalText) => {
-    if (finalText.trim()) {
-      setText((prev) => (prev.trim() ? `${prev.trim()} ${finalText.trim()}` : finalText.trim()));
-    }
-  });
+  // keepListening: pauses to remember what you ate don't end the session —
+  // only Done does.
+  const voice = useVoiceRecognition(
+    (finalText) => {
+      if (finalText.trim()) {
+        setText((prev) => (prev.trim() ? `${prev.trim()} ${finalText.trim()}` : finalText.trim()));
+      }
+    },
+    { keepListening: true },
+  );
 
   /** Confirms one event from a (possibly multi-event) batch, dropping it from the list — or leaving the screen once none remain. */
   const confirmEventAt = async (index: number) => {
@@ -182,7 +205,7 @@ export default function LogMealScreen() {
   /** A quick-option answer to a clarifying question re-interprets just that one item and merges it back into its own slot — never replaces the rest of a multi-event batch. */
   const runQuickOptionAt = async (index: number, option: string) => {
     try {
-      const result = await interpretEvent.mutateAsync({ text: option, nowISO: new Date().toISOString() });
+      const result = await interpretEvent.mutateAsync({ text: option, nowISO: localISOString() });
       const replacement = result.events[0];
       if (replacement?.type === 'food') {
         dispatch({ type: 'UPDATE_MEAL', index, meal: replacement.meal });
@@ -204,20 +227,7 @@ export default function LogMealScreen() {
     const newQuantity = Math.max(minQty, item.quantity + step);
     const scale = newQuantity / item.quantity;
 
-    items[itemIndex] = {
-      ...item,
-      quantity: newQuantity,
-      nutrition: {
-        ...item.nutrition,
-        calories: round1(item.nutrition.calories * scale),
-        proteinG: round1(item.nutrition.proteinG * scale),
-        carbsG: round1(item.nutrition.carbsG * scale),
-        fatG: round1(item.nutrition.fatG * scale),
-        fiberG: round1((item.nutrition.fiberG ?? 0) * scale),
-        sugarG: item.nutrition.sugarG !== undefined ? round1(item.nutrition.sugarG * scale) : undefined,
-        sodiumMg: item.nutrition.sodiumMg !== undefined ? round1(item.nutrition.sodiumMg * scale) : undefined,
-      },
-    };
+    items[itemIndex] = { ...item, quantity: newQuantity, nutrition: scaleNutritionForQuantity(item.nutrition, scale) };
 
     dispatch({
       type: 'UPDATE_MEAL',
@@ -233,6 +243,21 @@ export default function LogMealScreen() {
     const meal = event.meal;
     const items = [...meal.items];
     items[itemIndex] = { ...items[itemIndex], nutrition: scaleNutritionToCalories(items[itemIndex].nutrition, calories) };
+
+    dispatch({
+      type: 'UPDATE_MEAL',
+      index: eventIndex,
+      meal: { ...meal, items, estimatedTotals: sumNutrition(items.map((i) => i.nutrition)) },
+    });
+  };
+
+  const adjustProtein = (eventIndex: number, itemIndex: number, proteinG: number) => {
+    if (state.status !== 'interpretation') return;
+    const event = state.events[eventIndex];
+    if (event?.type !== 'food') return;
+    const meal = event.meal;
+    const items = [...meal.items];
+    items[itemIndex] = { ...items[itemIndex], nutrition: setNutritionProtein(items[itemIndex].nutrition, proteinG) };
 
     dispatch({
       type: 'UPDATE_MEAL',
@@ -345,18 +370,29 @@ export default function LogMealScreen() {
             >
               <Text className="text-5xl">🔴</Text>
             </Pressable>
-            <Text variant="subtitle">Listening... speak freely</Text>
-            {voice.transcript ? (
-              <Text variant="body" className="text-center italic">
-                &quot;{voice.transcript}&quot;
-              </Text>
+            <Text variant="subtitle">Listening — take your time</Text>
+            <Text variant="caption" className="text-center">
+              Pause whenever you need to think. I&apos;ll keep listening until you tap Done.
+            </Text>
+            {text.trim() || voice.transcript ? (
+              <View className="w-full rounded-3xl bg-white p-4 shadow-sm shadow-black/5 dark:bg-muted-dark">
+                <Text variant="body" className="text-lg">
+                  {text.trim()}
+                  {voice.transcript ? (
+                    <Text variant="body" className="text-lg text-gray-400 dark:text-gray-500">
+                      {text.trim() ? ' ' : ''}
+                      {voice.transcript}
+                    </Text>
+                  ) : null}
+                </Text>
+              </View>
             ) : null}
             {voice.error ? (
               <Text variant="caption" className="text-center text-red-500">
                 {voice.error}
               </Text>
             ) : null}
-            <Button label="Done speaking" variant="secondary" onPress={() => voice.stop()} className="w-full" />
+            <Button label="✓ Done" variant="cta" onPress={() => voice.stop()} className="w-full" />
             <Button label="Cancel" variant="quiet" onPress={cancelRecording} />
           </View>
         ) : null}
@@ -435,10 +471,7 @@ export default function LogMealScreen() {
         ) : null}
 
         {state.status === 'processing' ? (
-          <View className="items-center gap-3 py-10">
-            <Text className="text-3xl">{photoBase64 ? '📷' : '🎙️'}</Text>
-            <Text variant="body">{photoBase64 ? 'Looking at your photo...' : 'Understanding...'}</Text>
-          </View>
+          <AnalyzingProgress isPhoto={!!photoBase64} sourceText={photoBase64 ? undefined : text.trim()} />
         ) : null}
 
         {events.length > 1 ? (
@@ -475,6 +508,7 @@ export default function LogMealScreen() {
                 onConfirm={() => confirmEventAt(index)}
                 onAdjustQuantity={(itemIndex, delta) => adjustQuantity(index, itemIndex, delta)}
                 onAdjustCalories={(itemIndex, calories) => adjustCalories(index, itemIndex, calories)}
+                onAdjustProtein={(itemIndex, proteinG) => adjustProtein(index, itemIndex, proteinG)}
                 onRemoveItem={(itemIndex) => removeItem(index, itemIndex)}
                 onQuickOption={(option) => runQuickOptionAt(index, option)}
                 onRememberSize={(unit, grams) =>
@@ -482,6 +516,13 @@ export default function LogMealScreen() {
                   // this meal, and a failed save must not block logging.
                   rememberUnitWeight.mutate({ kind: 'unit_weight', key: unit, grams })
                 }
+                onRetype={() => removeEventAt(index)}
+              />
+            ) : event.type === 'water' ? (
+              <WaterInterpretationCard
+                water={event.water}
+                isSubmitting={isSubmitting}
+                onConfirm={() => confirmEventAt(index)}
                 onRetype={() => removeEventAt(index)}
               />
             ) : (

@@ -21,6 +21,8 @@ interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   auth?: boolean;
+  /** 'text' returns a successful body as-is (a CSV export) instead of parsing JSON. */
+  responseType?: 'json' | 'text';
 }
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -96,6 +98,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}, 
   }
 
   const text = await response.text();
+  if (options.responseType === 'text' && response.ok) {
+    return text as T;
+  }
   let data: unknown;
   try {
     data = text ? JSON.parse(text) : undefined;

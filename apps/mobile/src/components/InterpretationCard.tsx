@@ -1,8 +1,10 @@
 import type { InterpretedMeal } from '@fitness-app/shared';
 import { Pressable, View } from 'react-native';
 import { useCalorieSliderBounds } from '../hooks/useCalorieSliderBounds';
+import { proteinSliderBounds } from '../utils/nutritionOverride';
 import { Button } from './ui/Button';
 import { CalorieSlider } from './ui/CalorieSlider';
+import { ProteinSlider } from './ui/ProteinSlider';
 import { Card } from './ui/Card';
 import { Chip } from './ui/Chip';
 import { Text } from './ui/Text';
@@ -13,6 +15,7 @@ interface InterpretationCardProps {
   onConfirm: () => void;
   onAdjustQuantity: (index: number, delta: number) => void;
   onAdjustCalories: (index: number, calories: number) => void;
+  onAdjustProtein: (index: number, proteinG: number) => void;
   onRemoveItem: (index: number) => void;
   onQuickOption: (option: string) => void;
   /** Called when a size answer is worth storing as a lasting preference. */
@@ -32,6 +35,7 @@ export function InterpretationCard({
   onConfirm,
   onAdjustQuantity,
   onAdjustCalories,
+  onAdjustProtein,
   onRemoveItem,
   onQuickOption,
   onRememberSize,
@@ -39,6 +43,7 @@ export function InterpretationCard({
 }: InterpretationCardProps) {
   const tierInfo = TIER_COPY[meal.tier];
   const getBounds = useCalorieSliderBounds(meal.sourceText ?? meal.mealType);
+  const getProteinBounds = useCalorieSliderBounds(meal.sourceText ?? meal.mealType, proteinSliderBounds);
 
   return (
     <Card className="gap-4">
@@ -47,6 +52,7 @@ export function InterpretationCard({
         <View className="mt-2 gap-3">
           {meal.items.map((item, index) => {
             const bounds = getBounds(index, item.quantity, item.nutrition.calories);
+            const proteinBounds = getProteinBounds(index, item.quantity, item.nutrition.proteinG);
             return (
               <View key={`${item.name}-${index}`} className="gap-2">
                 <View className="flex-row items-center justify-between">
@@ -87,6 +93,12 @@ export function InterpretationCard({
                   maxCalories={bounds.max}
                   onChange={(calories) => onAdjustCalories(index, calories)}
                 />
+                <ProteinSlider
+                  proteinG={item.nutrition.proteinG}
+                  minProteinG={proteinBounds.min}
+                  maxProteinG={proteinBounds.max}
+                  onChange={(proteinG) => onAdjustProtein(index, proteinG)}
+                />
               </View>
             );
           })}
@@ -94,7 +106,10 @@ export function InterpretationCard({
       </View>
 
       <View className="border-t border-gray-100 pt-3 dark:border-gray-800">
-        <Text variant="subtitle">Estimated {Math.round(meal.estimatedTotals.calories)} kcal</Text>
+        <Text variant="subtitle">
+          Estimated {Math.round(meal.estimatedTotals.calories)} kcal · {Math.round(meal.estimatedTotals.proteinG)} g
+          protein
+        </Text>
         <Text variant="caption" className={tierInfo.className}>
           {tierInfo.label}
         </Text>
